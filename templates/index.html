@@ -795,21 +795,16 @@
                 hideTypingIndicator();
 
                 // Add bot response
-                if (data.response) {
-                    addMessage(data.response, false);
-                } else {
+                const botReply = data.response || data.reply || "No response from AI.";
+addMessage(botReply, false);
+ else {
                     addMessage('Sorry, I encountered an error. Please try again.', false);
                 }
 
             } catch (error) {
-                console.error('Error:', error);
-                hideTypingIndicator();
-                
-                // Simulate bot response for demo purposes (remove this in production)
-                setTimeout(() => {
-                    hideTypingIndicator();
-                    addMessage('I received your message: "' + message + '". This is a demo response. Connect to your Flask backend at /chat to enable real AI responses.', false);
-                }, 1500);
+        console.error('Error:', error);
+        hideTypingIndicator();
+        addMessage('⚠️ Failed to connect to AI server. Please check backend.', false);
             }
 
             // Re-enable input
