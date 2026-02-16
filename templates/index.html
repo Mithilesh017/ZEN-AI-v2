@@ -763,57 +763,54 @@
 
         // ==================== SEND MESSAGE ====================
         async function sendMessage() {
-            const message = chatInput.value.trim();
-            
-            if (!message) return;
+    const message = chatInput.value.trim();
+    
+    if (!message) return;
 
-            // Add user message
-            addMessage(message, true);
-            chatInput.value = '';
-            chatInput.style.height = 'auto';
+    // Add user message
+    addMessage(message, true);
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
 
-            // Disable input while processing
-            chatInput.disabled = true;
-            sendButton.disabled = true;
+    // Disable input while processing
+    chatInput.disabled = true;
+    sendButton.disabled = true;
 
-            // Show typing indicator
-            showTypingIndicator();
+    // Show typing indicator
+    showTypingIndicator();
 
-            try {
-                // Send message to Flask backend
-                const response = await fetch('/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ message: message })
-                });
+    try {
+        // Send message to Flask backend
+        const response = await fetch('/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message: message })
+        });
 
-                const data = await response.json();
+        const data = await response.json();
 
-                // Hide typing indicator
-                hideTypingIndicator();
+        // Hide typing indicator
+        hideTypingIndicator();
 
-                // Add bot response
-                const botReply = data.response || "No AI response received.";
-addMessage(botReply, false);
- else {
-                    addMessage('Sorry, I encountered an error. Please try again.', false);
-                }
+        // Add bot response (MATCHES Flask "reply")
+        const botReply = data.reply || "No AI response received.";
+        addMessage(botReply, false);
 
-             catch (error) {
+    } catch (error) {
         console.error('Error:', error);
         hideTypingIndicator();
         addMessage('⚠️ Failed to connect to AI server.', false);
-            }
+    }
 
-            // Re-enable input
-            chatInput.disabled = false;
-            sendButton.disabled = false;
-            chatInput.focus();
-        }
+    // Re-enable input
+    chatInput.disabled = false;
+    sendButton.disabled = false;
+    chatInput.focus();
+}
 
-        // ==================== EVENT LISTENERS ====================
+      // ==================== EVENT LISTENERS ====================
         sendButton.addEventListener('click', sendMessage);
 
         chatInput.addEventListener('keydown', function(e) {
