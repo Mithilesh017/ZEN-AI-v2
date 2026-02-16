@@ -795,7 +795,7 @@
                 hideTypingIndicator();
 
                 // Add bot response
-                const botReply = data.response || data.reply || "No response from AI.";
+                const botReply = data.response || "No AI response received.";
 addMessage(botReply, false);
  else {
                     addMessage('Sorry, I encountered an error. Please try again.', false);
@@ -804,7 +804,7 @@ addMessage(botReply, false);
             } catch (error) {
         console.error('Error:', error);
         hideTypingIndicator();
-        addMessage('⚠️ Failed to connect to AI server. Please check backend.', false);
+        addMessage('⚠️ Failed to connect to AI server.', false);
             }
 
             // Re-enable input
