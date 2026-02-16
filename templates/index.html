@@ -795,7 +795,7 @@
         hideTypingIndicator();
 
         // Add bot response (MATCHES Flask "reply")
-        const botReply = data.reply || "No AI response received.";
+        const botReply = data.response || "No AI response received.";
         addMessage(botReply, false);
 
     } catch (error) {
