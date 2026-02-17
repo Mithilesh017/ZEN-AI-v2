@@ -20,7 +20,7 @@ def chat():
         user_message = request.json["message"]
 
         response = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are ZEN AI, a smart digital companion."},
                 {"role": "user", "content": user_message}
