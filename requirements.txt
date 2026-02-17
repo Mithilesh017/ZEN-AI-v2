@@ -2,3 +2,5 @@ flask
 python-dotenv
 groq
 gunicorn
+requests
+newsapi-python
