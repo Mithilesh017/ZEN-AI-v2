@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Assistant Chat</title>
+    <title>ZEN AI — by ZEN Labs</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -612,7 +612,7 @@
                 </svg>
             </div>
             <div class="header-info">
-                <div class="header-title">AI Assistant</div>
+                <div class="header-title">ZEN AI</div>
                 <div class="header-status">
                     <span class="status-dot"></span>
                     Online
@@ -624,7 +624,7 @@
         <div class="chat-messages" id="chatMessages">
             <!-- Welcome Message -->
             <div class="welcome-message">
-                <h2>👋 Welcome!</h2>
+                <h2>ðŸ‘‹ Welcome!</h2>
                 <p>I'm your AI assistant. How can I help you today?</p>
             </div>
         </div>
@@ -653,6 +653,9 @@
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
 
+        // ==================== SESSION ID (for conversation memory) ====================
+        const SESSION_ID = 'session_' + Math.random().toString(36).substr(2, 9);
+
         // ==================== AUTO-RESIZE TEXTAREA ====================
         chatInput.addEventListener('input', function() {
             this.style.height = 'auto';
@@ -665,42 +668,57 @@
             let hours = now.getHours();
             const minutes = now.getMinutes();
             const ampm = hours >= 12 ? 'PM' : 'AM';
-            
             hours = hours % 12;
             hours = hours ? hours : 12;
             const minutesStr = minutes < 10 ? '0' + minutes : minutes;
-            
             return `${hours}:${minutesStr} ${ampm}`;
+        }
+
+        // ==================== FORMAT BOT TEXT (markdown-lite) ====================
+        function formatBotText(text) {
+            // Escape HTML first for safety
+            text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            // Bold: **text**
+            text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // Inline code: `code`
+            text = text.replace(/`([^`]+)`/g, '<code style="background:rgba(0,255,255,0.12);padding:2px 7px;border-radius:4px;font-family:monospace;font-size:13px;color:#00ffff;border:1px solid rgba(0,255,255,0.2);">$1</code>');
+            // Step headers: "Step 1:" or "Step 1."
+            text = text.replace(/(Step\s*\d+[:.])\s/g, '<span style="color:#00ffff;font-weight:700;">$1</span> ');
+            // Final answer line
+            text = text.replace(/(✅\s*Final Answer[:\s]*)/gi, '<span style="color:#00ff9d;font-weight:700;font-size:15px;">$1</span>');
+            // Emoji-prefixed section headers like "📌 Problem:"
+            text = text.replace(/(📌|🔍|✅|📰|💻|🌍|🔢|⚠️)\s*([^\n<]+)/g, '<span style="font-weight:600;">$1 $2</span>');
+            // Newlines → <br>
+            text = text.replace(/\n/g, '<br>');
+            return text;
         }
 
         // ==================== ADD MESSAGE TO CHAT ====================
         function addMessage(text, isUser = false) {
-            // Remove welcome message if it exists
             const welcomeMessage = document.querySelector('.welcome-message');
-            if (welcomeMessage) {
-                welcomeMessage.remove();
-            }
+            if (welcomeMessage) welcomeMessage.remove();
 
-            // Create message element
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
 
-            // Create avatar
             const avatar = document.createElement('div');
             avatar.className = 'message-avatar';
-            avatar.innerHTML = isUser ? '👤' : `
-                <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: #000000;">
+            avatar.innerHTML = isUser ? '\u{1F464}' : `
+                <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:#000000;">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-                </svg>
-            `;
+                </svg>`;
 
-            // Create message content
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
 
             const bubbleDiv = document.createElement('div');
             bubbleDiv.className = 'message-bubble';
-            bubbleDiv.textContent = text;
+
+            if (isUser) {
+                bubbleDiv.textContent = text;
+            } else {
+                bubbleDiv.innerHTML = formatBotText(text);
+            }
 
             const timestamp = document.createElement('div');
             timestamp.className = 'message-timestamp';
@@ -708,10 +726,8 @@
 
             contentDiv.appendChild(bubbleDiv);
             contentDiv.appendChild(timestamp);
-
             messageDiv.appendChild(avatar);
             messageDiv.appendChild(contentDiv);
-
             chatMessages.appendChild(messageDiv);
             scrollToBottom();
         }
@@ -725,20 +741,15 @@
             const avatar = document.createElement('div');
             avatar.className = 'message-avatar';
             avatar.innerHTML = `
-                <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; fill: #000000;">
+                <svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:#000000;">
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-                </svg>
-            `;
+                </svg>`;
             avatar.style.background = 'linear-gradient(135deg, #00ffff 0%, #00ff9d 100%)';
-            avatar.style.boxShadow = '0 4px 12px rgba(0, 255, 255, 0.4), 0 0 20px rgba(0, 255, 255, 0.2)';
+            avatar.style.boxShadow = '0 4px 12px rgba(0,255,255,0.4), 0 0 20px rgba(0,255,255,0.2)';
 
             const dotsDiv = document.createElement('div');
             dotsDiv.className = 'typing-dots';
-            dotsDiv.innerHTML = `
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-            `;
+            dotsDiv.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
 
             typingDiv.appendChild(avatar);
             typingDiv.appendChild(dotsDiv);
@@ -748,69 +759,51 @@
 
         // ==================== HIDE TYPING INDICATOR ====================
         function hideTypingIndicator() {
-            const typingIndicator = document.getElementById('typingIndicator');
-            if (typingIndicator) {
-                typingIndicator.remove();
-            }
+            const el = document.getElementById('typingIndicator');
+            if (el) el.remove();
         }
 
         // ==================== SCROLL TO BOTTOM ====================
         function scrollToBottom() {
-            setTimeout(() => {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            }, 100);
+            setTimeout(() => { chatMessages.scrollTop = chatMessages.scrollHeight; }, 100);
         }
 
         // ==================== SEND MESSAGE ====================
         async function sendMessage() {
-    const message = chatInput.value.trim();
-    
-    if (!message) return;
+            const message = chatInput.value.trim();
+            if (!message) return;
 
-    // Add user message
-    addMessage(message, true);
-    chatInput.value = '';
-    chatInput.style.height = 'auto';
+            addMessage(message, true);
+            chatInput.value = '';
+            chatInput.style.height = 'auto';
+            chatInput.disabled = true;
+            sendButton.disabled = true;
+            showTypingIndicator();
 
-    // Disable input while processing
-    chatInput.disabled = true;
-    sendButton.disabled = true;
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message, session_id: SESSION_ID })
+                });
 
-    // Show typing indicator
-    showTypingIndicator();
+                const data = await response.json();
+                hideTypingIndicator();
+                const botReply = data.response || 'No response received.';
+                addMessage(botReply, false);
 
-    try {
-        // Send message to Flask backend
-        const response = await fetch('/chat', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ message: message })
-        });
+            } catch (error) {
+                console.error('Error:', error);
+                hideTypingIndicator();
+                addMessage('\u26A0\uFE0F Failed to connect to ZEN AI server. Please try again.', false);
+            }
 
-        const data = await response.json();
+            chatInput.disabled = false;
+            sendButton.disabled = false;
+            chatInput.focus();
+        }
 
-        // Hide typing indicator
-        hideTypingIndicator();
-
-        // Add bot response (MATCHES Flask "reply")
-        const botReply = data.response || "No AI response received.";
-        addMessage(botReply, false);
-
-    } catch (error) {
-        console.error('Error:', error);
-        hideTypingIndicator();
-        addMessage('⚠️ Failed to connect to AI server.', false);
-    }
-
-    // Re-enable input
-    chatInput.disabled = false;
-    sendButton.disabled = false;
-    chatInput.focus();
-}
-
-      // ==================== EVENT LISTENERS ====================
+        // ==================== EVENT LISTENERS ====================
         sendButton.addEventListener('click', sendMessage);
 
         chatInput.addEventListener('keydown', function(e) {
@@ -820,10 +813,7 @@
             }
         });
 
-        // Focus input on load
-        window.addEventListener('load', () => {
-            chatInput.focus();
-        });
+        window.addEventListener('load', () => { chatInput.focus(); });
     </script>
 </body>
 </html>
