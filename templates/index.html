@@ -541,8 +541,10 @@
             messageInput.style.height = newHeight + 'px';
         }
         messageInput.addEventListener('input', autoResizeTextarea);
+        // ========== Session ID (for conversation memory) ==========
+        const SESSION_ID = 'session_' + Math.random().toString(36).substr(2, 9);
         // ========== Send Message ==========
-        function sendMessage() {
+        async function sendMessage() {
             const message = messageInput.value.trim();
             
             if (!message) return;
@@ -555,14 +557,31 @@
             // Clear input
             messageInput.value = '';
             autoResizeTextarea();
+            // Disable input while waiting
+            messageInput.disabled = true;
+            sendButton.disabled = true;
             // Show typing indicator
             showTypingIndicator();
-            // Simulate bot response
-            setTimeout(() => {
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message, session_id: SESSION_ID })
+                });
+                const data = await response.json();
                 hideTypingIndicator();
-                const botResponse = generateBotResponse(message);
-                addMessage(botResponse, 'bot');
-            }, 1500 + Math.random() * 1000);
+                const botReply = data.response || 'No response received.';
+                addMessage(botReply, 'bot');
+            } catch (error) {
+                console.error('Error:', error);
+                hideTypingIndicator();
+                addMessage('⚠️ Failed to connect to ZEN AI server. Please try again.', 'bot');
+            }
+
+            messageInput.disabled = false;
+            sendButton.disabled = false;
+            messageInput.focus();
         }
         function addMessage(text, type) {
             const messageDiv = document.createElement('div');
@@ -611,22 +630,6 @@
             setTimeout(() => {
                 chatContainer.scrollTop = chatContainer.scrollHeight;
             }, 100);
-        }
-        // ========== Generate Bot Response ==========
-        function generateBotResponse(userMessage) {
-            const responses = [
-                "I understand your question. Let me help you with that.",
-                "That's a great point! Here's what I think...",
-                "I'm processing your request. Here's my response.",
-                "Interesting question! Let me elaborate on that.",
-                "Thanks for asking! Here's what you need to know.",
-                "I've analyzed your input. Here are my thoughts.",
-                "Great question! Here's a detailed explanation.",
-                "I appreciate your curiosity. Let me explain.",
-                "That's a thoughtful question. Here's my perspective.",
-                "I'm here to help! Let me address your concern."
-            ];
-            return responses[Math.floor(Math.random() * responses.length)];
         }
         // ========== Event Listeners ==========
         sendButton.addEventListener('click', sendMessage);
