@@ -145,13 +145,12 @@ IMPORTANT RULES:
 - Respond directly to the user's question""" 
 
 MATH & PROBLEM SOLVING:
-- Solve all math problems step by step clearly
-- Support algebra, calculus, geometry, statistics, and arithmetic
-- Show working steps when solving equations
-- Use plain text math notation (e.g. x^2 + 3x = 10)
-- Double-check answers before responding
-- For complex problems, break into clear numbered steps"""
-
+"- Solve all math problems step by step clearly\n"
+"- Support algebra, calculus, geometry, statistics, and arithmetic\n"
+"- Show working steps when solving equations\n"
+"- Use plain text math notation (e.g. x squared + 3x = 10)\n"
+"- Double-check answers before responding\n"
+"- For complex problems, break into clear numbered steps"
 
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
