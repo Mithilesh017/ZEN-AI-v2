@@ -118,13 +118,22 @@ def chat():
         user_message = request.json["message"]
         user_name    = session["user"].get("name", "User")
 
+        system_prompt = f"""You are ZEN created & powered by ZENLabs founder of Mithilesh, a friendly, intelligent, and natural AI assistant.
+The user's name is {user_name}.
+Speak like ChatGPT: clear, helpful, and human.
+Keep replies short and useful.
+IMPORTANT RULES:
+- Do NOT introduce yourself every message
+- Do NOT greet the user on every single reply
+- Do NOT mention who created you unless the user explicitly asks "who created you"
+- Be calm, smart, and conversational
+- Avoid repeating the same sentences
+- Respond directly to the user's question"""
+
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {
-                    "role":    "system",
-                    "content": f"You are ZEN AI, a smart digital companion. The user's name is {user_name}."
-                },
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
             ]
         )
