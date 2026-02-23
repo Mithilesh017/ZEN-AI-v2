@@ -2,5 +2,4 @@ flask
 python-dotenv
 groq
 gunicorn
-requests
-newsapi-python
+google-auth

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ZEN AI Login</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0f0f0f;
+            color: white;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .login-card {
+            background: #1a1a1a;
+            padding: 50px 45px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(0, 255, 150, 0.15);
+            width: 380px;
+        }
+
+        .logo {
+            font-size: 36px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            background: linear-gradient(90deg, #00ffb3, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+
+        .tagline { font-size: 13px; color: #888; margin-bottom: 35px; letter-spacing: 1px; }
+
+        .badge {
+            display: inline-block;
+            background: rgba(0,255,179,0.1);
+            color: #00ffb3;
+            border: 1px solid rgba(0,255,179,0.3);
+            border-radius: 20px;
+            font-size: 11px;
+            padding: 3px 12px;
+            margin-bottom: 30px;
+            letter-spacing: 1px;
+        }
+
+        h3 { font-size: 18px; color: #ccc; font-weight: 400; margin-bottom: 5px; }
+
+        .divider { display: flex; align-items: center; margin: 25px 0; gap: 10px; }
+        .divider hr { flex: 1; border: none; border-top: 1px solid #333; }
+        .divider span { color: #555; font-size: 13px; }
+
+        .google-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: #fff;
+            color: #3c3c3c;
+            border: none;
+            border-radius: 8px;
+            padding: 13px 20px;
+            width: 100%;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+
+        .google-btn:hover { background: #f0f0f0; box-shadow: 0 4px 15px rgba(255,255,255,0.1); }
+        .google-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .spinner {
+            width: 18px; height: 18px;
+            border: 2px solid #ccc;
+            border-top-color: #333;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: none;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .error-msg {
+            display: none;
+            margin-top: 14px;
+            font-size: 13px;
+            color: #ff5555;
+            background: rgba(255, 85, 85, 0.1);
+            border: 1px solid rgba(255, 85, 85, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .user-info { display: none; flex-direction: column; align-items: center; gap: 12px; margin-top: 10px; }
+        .user-info img { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #00ffb3; box-shadow: 0 0 15px rgba(0, 255, 179, 0.4); }
+        .user-name { font-size: 18px; font-weight: 600; color: #fff; }
+        .user-email { font-size: 13px; color: #888; }
+
+        .continue-btn {
+            margin-top: 8px; width: 100%; padding: 13px 20px;
+            border: none; border-radius: 8px;
+            background: linear-gradient(90deg, #00ffb3, #00aaff);
+            color: #000; font-size: 15px; font-weight: 700;
+            cursor: pointer; transition: opacity 0.2s, box-shadow 0.2s;
+        }
+        .continue-btn:hover { opacity: 0.9; box-shadow: 0 4px 20px rgba(0, 255, 179, 0.4); }
+
+        .terms { margin-top: 28px; font-size: 12px; color: #555; line-height: 1.6; }
+        .terms a { color: #00ffb3; text-decoration: none; }
+        .terms a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+    <div class="logo">ZEN AI</div>
+    <div class="tagline">Your Intelligent Memory Assistant</div>
+    <div class="badge">⚡ Powered by ZEN Labs</div>
+
+    <div id="signInSection">
+        <h3>Sign in to continue</h3>
+        <div class="divider"><hr><span>Use your Google account</span><hr></div>
+
+        <button class="google-btn" id="googleBtn" onclick="googleLogin()">
+            <div class="spinner" id="spinner"></div>
+            <svg id="googleIcon" width="22" height="22" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+            <span id="btnText">Continue with Google</span>
+        </button>
+
+        <div class="error-msg" id="errorMsg"></div>
+    </div>
+
+    <div class="user-info" id="userInfo">
+        <img id="userAvatar" src="" alt="Profile">
+        <div class="user-name" id="userName"></div>
+        <div class="user-email" id="userEmail"></div>
+        <button class="continue-btn" onclick="window.location.href='/'">🚀 Enter ZEN AI</button>
+    </div>
+
+    <p class="terms">
+        By signing in, you agree to ZEN AI's
+        <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+    </p>
+</div>
+
+<script>
+    const CLIENT_ID = "701868092175-vu87aklo8km85cdqfd0v2fin9tsac63e.apps.googleusercontent.com";
+
+    window.onload = function () {
+        if (typeof google !== 'undefined') initGoogle();
+        else document.querySelector('script[src*="accounts.google.com"]').addEventListener('load', initGoogle);
+    };
+
+    function initGoogle() {
+        google.accounts.id.initialize({
+            client_id: CLIENT_ID,
+            callback: handleCredentialResponse,
+            auto_select: false,
+            cancel_on_tap_outside: true
+        });
+    }
+
+    function googleLogin() {
+        if (typeof google === 'undefined') {
+            showError("Google Sign-In failed to load. Check your internet connection.");
+            return;
+        }
+        google.accounts.id.prompt();
+    }
+
+    async function handleCredentialResponse(googleResponse) {
+        setLoading(true);
+        try {
+            // Send token to Flask /verify-token for server-side verification + session creation
+            const res = await fetch('/verify-token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: googleResponse.credential })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                document.getElementById('userName').textContent = data.user.name;
+                document.getElementById('userEmail').textContent = data.user.email;
+                document.getElementById('userAvatar').src = data.user.picture;
+                document.getElementById('signInSection').style.display = 'none';
+                document.getElementById('userInfo').style.display = 'flex';
+            } else {
+                showError("Login failed: " + (data.error || "Unknown error"));
+            }
+        } catch (err) {
+            showError("Could not connect to server. Please try again.");
+        }
+        setLoading(false);
+    }
+
+    function setLoading(isLoading) {
+        document.getElementById('googleBtn').disabled = isLoading;
+        document.getElementById('spinner').style.display = isLoading ? 'block' : 'none';
+        document.getElementById('googleIcon').style.display = isLoading ? 'none' : 'block';
+        document.getElementById('btnText').textContent = isLoading ? 'Verifying...' : 'Continue with Google';
+    }
+
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = "⚠️ " + msg;
+        el.style.display = 'block';
+    }
+</script>
+</body>
+</html>
