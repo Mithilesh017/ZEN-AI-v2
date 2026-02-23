@@ -3,3 +3,4 @@ python-dotenv
 groq
 gunicorn
 google-auth
+requests
