@@ -1,17 +1,21 @@
 """
 memory_api.py — FastAPI Server for the Memory Engine
 =====================================================
-This is the entry-point for the microservice. It exposes two POST endpoints:
+This is the entry-point for the standalone microservice. It exposes two
+POST endpoints:
 
   POST /remember   — store a new memory for a user
   POST /recall     — retrieve relevant past memories for a user
 
 Data flow:
   1. Client sends JSON  →  FastAPI validates it with Pydantic models
-  2. The text is converted to a vector via  embedder.text_to_vector()
-  3. The vector + text are saved / searched via  database.save_memory()
-     or database.search_memories()
+  2. The text is embedded via the HuggingFace Inference API
+  3. The vector + text are saved / searched via Pinecone
   4. A JSON response is returned to the client
+
+Required env vars:
+  HF_TOKEN         — HuggingFace access token
+  PINECONE_API_KEY — Pinecone API key
 
 Run with:
     uvicorn memory_api:app --reload --port 8100
@@ -30,8 +34,8 @@ from database import save_memory, search_memories
 app = FastAPI(
     title="Zen Memory Engine",
     description="Long-Term Memory microservice — store and recall user chat "
-                "history as semantic vector embeddings.",
-    version="1.0.0",
+                "history as semantic vector embeddings (cloud-native).",
+    version="2.0.0",
 )
 
 
@@ -69,7 +73,7 @@ class RecallResponse(BaseModel):
 @app.get("/", tags=["Health"])
 async def health_check():
     """Simple liveness probe — useful for monitoring / integration tests."""
-    return {"status": "ok", "service": "Zen Memory Engine"}
+    return {"status": "ok", "service": "Zen Memory Engine", "version": "2.0.0"}
 
 
 # ---------------------------------------------------------------------------
@@ -78,18 +82,14 @@ async def health_check():
 @app.post("/remember", response_model=RememberResponse, tags=["Memory"])
 async def remember(request: RememberRequest):
     """
-    Accept a piece of text from a user and store it as a vector embedding.
-
-    Steps:
-      1. Embed the text  →  384-dim vector
-      2. Save the text + vector in the user's ChromaDB collection
-      3. Return the unique memory ID
+    Accept a piece of text from a user and store it as a vector embedding
+    in Pinecone.
     """
     try:
-        # Step 1 — Convert text to vector.
+        # Step 1 — Convert text to vector via HuggingFace API.
         vector = text_to_vector(request.text)
 
-        # Step 2 — Persist to ChromaDB.
+        # Step 2 — Persist to Pinecone.
         memory_id = save_memory(
             email=request.email,
             text=request.text,
@@ -112,19 +112,14 @@ async def remember(request: RememberRequest):
 @app.post("/recall", response_model=RecallResponse, tags=["Memory"])
 async def recall(request: RecallRequest):
     """
-    Search a user's stored memories for snippets semantically similar to
-    the provided query text.
-
-    Steps:
-      1. Embed the query text  →  384-dim vector
-      2. Cosine-similarity search against the user's ChromaDB collection
-      3. Return the top-N matching text snippets
+    Search a user's stored memories in Pinecone for snippets semantically
+    similar to the provided query text.
     """
     try:
-        # Step 1 — Convert the query to a vector.
+        # Step 1 — Convert the query to a vector via HuggingFace API.
         query_vector = text_to_vector(request.query_text)
 
-        # Step 2 — Search the user's memory store.
+        # Step 2 — Search the user's memory store in Pinecone.
         memories = search_memories(
             email=request.email,
             query_vector=query_vector,
