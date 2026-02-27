@@ -5,15 +5,17 @@ import json
 import urllib.parse
 import urllib.request
 from dotenv import load_dotenv
+
+# Load env vars BEFORE importing memory engine modules
+# so that PINECONE_API_KEY, HF_TOKEN, etc. are available.
+load_dotenv()
+
 from groq import Groq
 
-# --- Memory Engine Imports ---
-# Add the zen_memory_engine folder to the Python path so we can import its modules.
+# --- Memory Engine Imports (lazy — no API calls happen at import time) ---
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "zen_memory_engine"))
 from embedder import text_to_vector
 from database import save_memory, search_memories
-
-load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "zen-ai-super-secret-key-change-this")

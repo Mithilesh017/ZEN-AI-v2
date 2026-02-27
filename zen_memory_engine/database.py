@@ -1,16 +1,16 @@
 """
-database.py — Pinecone Vector Storage Module
-==============================================
+database.py — Pinecone Vector Storage Module (Lazy Init)
+==========================================================
 This module manages cloud vector storage using Pinecone (v3 client).
 
-Why Pinecone instead of FAISS?
-  • FAISS stores data on disk — Render's free tier has ephemeral storage
-    that gets wiped on every deploy/restart.
-  • Pinecone is a managed cloud vector DB with a generous free tier
-    (100K vectors) — data persists permanently.
+IMPORTANT — Lazy Initialisation:
+  The Pinecone client and index connection are created on first use,
+  NOT at import time.  This prevents Gunicorn startup timeouts on
+  Render's free tier where global API calls can block the process
+  from binding to the HTTP port in time.
 
 Key design decisions:
-  • All users share a single Pinecone index ("zen-memory").
+  • All users share a single Pinecone index ("chatbot-memory").
   • User isolation is achieved via metadata filtering on the email field.
   • Each vector stores: id, embedding, metadata = {email, text}.
 
@@ -25,20 +25,26 @@ Usage:
 
 import os
 import uuid
-from pinecone import Pinecone
 
 # ---------------------------------------------------------------------------
-# Pinecone Client Initialisation
+# Lazy-loaded Pinecone index (created on first request, not at import)
 # ---------------------------------------------------------------------------
-pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-
-# Connect to the pre-created index.
-# You must create this index in the Pinecone dashboard first:
-#   Name: zen-memory | Dimensions: 384 | Metric: cosine
 INDEX_NAME = "chatbot-memory"
-index = pc.Index(INDEX_NAME)
+_index = None      # will be set by get_index() on first call
 
-print(f"[database] Connected to Pinecone index: {INDEX_NAME}")
+
+def get_index():
+    """
+    Return the Pinecone Index object, creating the client and connection
+    only on the very first call.  Subsequent calls return the cached object.
+    """
+    global _index
+    if _index is None:
+        from pinecone import Pinecone
+        pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+        _index = pc.Index(INDEX_NAME)
+        print(f"[database] Connected to Pinecone index: {INDEX_NAME}")
+    return _index
 
 
 # ---------------------------------------------------------------------------
@@ -63,11 +69,13 @@ def save_memory(email: str, text: str, vector: list[float]) -> str:
     str
         A unique ID assigned to the stored memory.
     """
+    idx = get_index()
+
     # Generate a unique ID for this memory entry.
     memory_id = str(uuid.uuid4())
 
     # Upsert the vector with metadata into Pinecone.
-    index.upsert(
+    idx.upsert(
         vectors=[
             {
                 "id": memory_id,
@@ -109,8 +117,10 @@ def search_memories(
         similarity (closest first).  Returns an empty list if no memories
         are found.
     """
+    idx = get_index()
+
     # Query Pinecone with a metadata filter so we only search this user's data.
-    results = index.query(
+    results = idx.query(
         vector=query_vector,
         top_k=limit,
         include_metadata=True,

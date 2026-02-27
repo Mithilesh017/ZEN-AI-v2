@@ -1,13 +1,13 @@
 """
-embedder.py — HuggingFace Inference API Embedding Module
-==========================================================
+embedder.py — HuggingFace Inference API Embedding Module (Lazy Init)
+======================================================================
 This module calls the HuggingFace Inference API to convert text into
 384-dimensional vector embeddings using the all-MiniLM-L6-v2 model.
 
-Why cloud instead of local?
-  • sentence-transformers + PyTorch need ~1.5 GB RAM — too much for
-    Render's free tier (512 MB).
-  • The HF Inference API runs the same model on their servers for free.
+IMPORTANT — Lazy Initialisation:
+  No API calls or heavy operations happen at import time.  The env var
+  is read and the HTTP request is made only inside text_to_vector()
+  when explicitly called.  This prevents Gunicorn startup timeouts.
 
 Required env var:
   HF_TOKEN — your HuggingFace access token (free at huggingface.co/settings/tokens)
@@ -21,15 +21,12 @@ import os
 import requests
 
 # ---------------------------------------------------------------------------
-# HuggingFace Inference API Configuration
+# HuggingFace Inference API Configuration (lightweight constants only)
 # ---------------------------------------------------------------------------
 HF_API_URL = (
     "https://api-inference.huggingface.co/pipeline/feature-extraction/"
     "sentence-transformers/all-MiniLM-L6-v2"
 )
-HF_TOKEN = os.getenv("HF_TOKEN")
-
-print("[embedder] Using HuggingFace Inference API for embeddings")
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +53,10 @@ def text_to_vector(text: str) -> list[float]:
     RuntimeError
         If the API call fails or returns an unexpected format.
     """
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    # Read the token at call time (after load_dotenv has run in app.py).
+    hf_token = os.getenv("HF_TOKEN")
+
+    headers = {"Authorization": f"Bearer {hf_token}"}
     payload = {"inputs": text, "options": {"wait_for_model": True}}
 
     response = requests.post(HF_API_URL, headers=headers, json=payload)
