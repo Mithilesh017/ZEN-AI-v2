@@ -4,4 +4,4 @@ groq
 gunicorn
 google-auth
 requests
-pinecone-client
+pinecone
