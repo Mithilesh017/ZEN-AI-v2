@@ -24,8 +24,7 @@ import requests
 # HuggingFace Inference API Configuration (lightweight constants only)
 # ---------------------------------------------------------------------------
 HF_API_URL = (
-    "https://api-inference.huggingface.co/pipeline/feature-extraction/"
-    "sentence-transformers/all-MiniLM-L6-v2"
+    "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2"
 )
 
 
