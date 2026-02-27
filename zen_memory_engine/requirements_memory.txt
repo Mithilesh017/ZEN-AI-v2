@@ -1,0 +1,16 @@
+# ============================================================
+# requirements_memory.txt
+# Dependencies for the Zen Memory Engine microservice
+# ============================================================
+
+# --- Vector embedding model (runs locally, no API key needed) ---
+sentence-transformers>=2.2.0       # wraps HuggingFace models for easy .encode()
+
+# --- Vector search engine (fast, no server, works on Python 3.14) ---
+faiss-cpu>=1.7.0                   # Meta's similarity-search library (CPU build)
+numpy>=1.26.0                      # required by FAISS for array operations
+
+# --- Web framework & server ---
+fastapi>=0.100.0                   # async API framework with auto-docs
+uvicorn[standard]>=0.23.0         # ASGI server to run FastAPI
+pydantic[email]>=2.0.0            # email validation for Pydantic models (EmailStr)

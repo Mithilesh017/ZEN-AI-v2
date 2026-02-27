@@ -4,3 +4,6 @@ groq
 gunicorn
 google-auth
 requests
+sentence-transformers
+faiss-cpu
+numpy

@@ -1,10 +1,17 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import os
+import sys
 import json
 import urllib.parse
 import urllib.request
 from dotenv import load_dotenv
 from groq import Groq
+
+# --- Memory Engine Imports ---
+# Add the zen_memory_engine folder to the Python path so we can import its modules.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "zen_memory_engine"))
+from embedder import text_to_vector
+from database import save_memory, search_memories
 
 load_dotenv()
 
@@ -117,6 +124,13 @@ def chat():
     try:
         user_message = request.json["message"]
         user_name    = session["user"].get("name", "User")
+        user_email   = session["user"].get("email")
+
+        # --- Memory Engine: Embed the incoming message ---
+        query_vector = text_to_vector(user_message)
+
+        # --- Memory Engine: Search for relevant past memories ---
+        memories = search_memories(user_email, query_vector, limit=5)
 
         system_prompt = (
              f"You are ZEN created & powered by ZENLabs founder of Mithilesh, a friendly, intelligent, and natural AI assistant.\n"
@@ -152,6 +166,11 @@ f"The user's name is {user_name}.\n\n"
 "- For complex problems, break into clear numbered steps"
 )
 
+        # --- Memory Engine: Append relevant memories to the prompt ---
+        if memories:
+            memories_text = "\n".join(f"- {m}" for m in memories)
+            system_prompt += f"\n\nHere are some relevant past memories about this user:\n{memories_text}"
+
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
@@ -161,6 +180,10 @@ f"The user's name is {user_name}.\n\n"
         )
 
         reply = response.choices[0].message.content
+
+        # --- Memory Engine: Save the user's message for future recall ---
+        save_memory(user_email, user_message, query_vector)
+
         return jsonify({"response": reply})
 
     except Exception as e:

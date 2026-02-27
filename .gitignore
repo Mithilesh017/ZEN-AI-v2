@@ -1,3 +1,6 @@
 .env
 .env.*
 __pycache__/
+faiss_data/
+chroma_data/
+*.pyc
