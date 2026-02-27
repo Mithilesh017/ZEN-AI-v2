@@ -35,7 +35,7 @@ pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 # Connect to the pre-created index.
 # You must create this index in the Pinecone dashboard first:
 #   Name: zen-memory | Dimensions: 384 | Metric: cosine
-INDEX_NAME = "zen-memory"
+INDEX_NAME = "chatbot-memory"
 index = pc.Index(INDEX_NAME)
 
 print(f"[database] Connected to Pinecone index: {INDEX_NAME}")
