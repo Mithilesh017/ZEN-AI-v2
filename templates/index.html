@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
     <title>ZEN AI</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,6 +28,7 @@
             --neon-glow: rgba(0, 122, 255, 0.4);
             --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
+
         [data-theme="dark"] {
             --bg-color: #000000;
             --text-color: #FFFFFF;
@@ -42,16 +45,21 @@
             --glass-bg: rgba(0, 0, 0, 0.6);
             --neon-glow: rgba(0, 122, 255, 0.6);
         }
+
         /* ========== Reset & Base ========== */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        html, body {
+
+        html,
+        body {
             height: 100%;
+            height: 100dvh;
             overflow: hidden;
         }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: var(--bg-color);
@@ -60,6 +68,7 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
+
         /* ========== Header ========== */
         .header {
             position: fixed;
@@ -76,6 +85,7 @@
             -webkit-backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--input-border);
         }
+
         .brand {
             font-size: 24px;
             font-weight: 700;
@@ -86,11 +96,13 @@
             background-clip: text;
             text-transform: uppercase;
         }
+
         .header-right {
             display: flex;
             align-items: center;
             gap: 16px;
         }
+
         .brand-text {
             font-size: 18px;
             font-weight: 600;
@@ -101,44 +113,18 @@
             background-clip: text;
             text-transform: uppercase;
         }
-        /* ========== Theme Toggle ========== */
-        .theme-toggle {
-            width: 52px;
-            height: 28px;
-            background: var(--input-bg);
-            border: 1px solid var(--input-border);
-            border-radius: 14px;
-            position: relative;
-            cursor: pointer;
-            transition: var(--transition);
-        }
-        .theme-toggle:hover {
-            border-color: var(--input-glow);
-            box-shadow: 0 0 20px var(--input-glow);
-        }
-        .theme-toggle::before {
-            content: '';
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 22px;
-            height: 22px;
-            background: var(--user-bubble);
-            border-radius: 50%;
-            transition: var(--transition);
-        }
-        [data-theme="dark"] .theme-toggle::before {
-            transform: translateX(24px);
-        }
+
+
         /* ========== Main Container ========== */
         .container {
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            height: 100%;
             max-width: 900px;
             margin: 0 auto;
             padding-top: 70px;
         }
+
         /* ========== Chat Messages ========== */
         .chat-container {
             flex: 1;
@@ -146,66 +132,81 @@
             padding: 20px 16px;
             scroll-behavior: smooth;
         }
+
         .chat-container::-webkit-scrollbar {
             width: 6px;
         }
+
         .chat-container::-webkit-scrollbar-track {
             background: transparent;
         }
+
         .chat-container::-webkit-scrollbar-thumb {
             background: var(--input-border);
             border-radius: 3px;
         }
+
         .messages {
             display: flex;
             flex-direction: column;
             gap: 12px;
             min-height: 100%;
         }
+
         .message {
             display: flex;
             opacity: 0;
             transform: translateY(20px);
             animation: messageIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         }
+
         .message.user {
             justify-content: flex-end;
         }
+
         .message.bot {
             justify-content: flex-start;
         }
+
         @keyframes messageIn {
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
         }
+
         .message.user .message-bubble {
             animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
+
         .message.bot .message-bubble {
             animation: slideInLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
+
         @keyframes slideInRight {
             from {
                 opacity: 0;
                 transform: translateX(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateX(0);
             }
         }
+
         @keyframes slideInLeft {
             from {
                 opacity: 0;
                 transform: translateX(-30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateX(0);
             }
         }
+
         .message-bubble {
             max-width: 80%;
             padding: 14px 18px;
@@ -216,15 +217,18 @@
             box-shadow: 0 2px 12px var(--shadow);
             transition: var(--transition);
         }
+
         .message.user .message-bubble {
             background: linear-gradient(135deg, var(--user-bubble) 0%, #0056D6 100%);
             color: var(--user-bubble-text);
             border-bottom-right-radius: 6px;
         }
+
         .message.user .message-bubble:hover {
             transform: scale(1.02);
             box-shadow: 0 4px 20px var(--neon-glow);
         }
+
         .message.bot .message-bubble {
             background: var(--bot-bubble);
             color: var(--bot-bubble-text);
@@ -232,10 +236,12 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
         }
+
         .message.bot .message-bubble:hover {
             transform: scale(1.02);
             box-shadow: 0 4px 20px var(--shadow);
         }
+
         /* ========== Typing Indicator ========== */
         .typing-indicator {
             display: flex;
@@ -250,9 +256,11 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
         }
+
         .typing-indicator.hidden {
             display: none;
         }
+
         .dot {
             width: 8px;
             height: 8px;
@@ -260,29 +268,39 @@
             border-radius: 50%;
             animation: typingAnimation 1.4s ease-in-out infinite;
         }
+
         .dot:nth-child(1) {
             animation-delay: 0s;
         }
+
         .dot:nth-child(2) {
             animation-delay: 0.2s;
         }
+
         .dot:nth-child(3) {
             animation-delay: 0.4s;
         }
+
         .dot:nth-child(4) {
             animation-delay: 0.6s;
         }
+
         @keyframes typingAnimation {
-            0%, 80%, 100% {
+
+            0%,
+            80%,
+            100% {
                 transform: scale(0.6);
                 opacity: 0.4;
             }
+
             40% {
                 transform: scale(1);
                 opacity: 1;
                 box-shadow: 0 0 10px var(--input-glow);
             }
         }
+
         /* ========== Input Area ========== */
         .input-container {
             padding: 16px 20px 24px 20px;
@@ -291,6 +309,7 @@
             -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid var(--input-border);
         }
+
         .input-wrapper {
             display: flex;
             align-items: flex-end;
@@ -303,14 +322,17 @@
             padding: 8px 12px;
             transition: var(--transition);
         }
+
         .input-wrapper:focus-within {
             border-color: var(--user-bubble);
-            box-shadow: 0 0 25px var(--input-glow), inset 0 0 15px rgba(0, 122, 255, 0.1);
+            box-shadow: 0 0 20px var(--input-glow), inset 0 0 10px rgba(0, 122, 255, 0.08);
         }
+
         .input-wrapper:hover {
             border-color: var(--user-bubble);
-            box-shadow: 0 0 15px var(--input-glow);
+            box-shadow: 0 0 12px var(--input-glow);
         }
+
         textarea {
             flex: 1;
             background: transparent;
@@ -326,16 +348,20 @@
             padding: 8px 4px;
             overflow-y: auto;
         }
+
         textarea::placeholder {
             color: var(--text-secondary);
         }
+
         textarea::-webkit-scrollbar {
             width: 4px;
         }
+
         textarea::-webkit-scrollbar-thumb {
             background: var(--input-border);
             border-radius: 2px;
         }
+
         .send-button {
             width: 44px;
             height: 44px;
@@ -350,139 +376,515 @@
             flex-shrink: 0;
             box-shadow: 0 4px 15px var(--neon-glow);
         }
+
         .send-button:hover {
             transform: scale(1.1);
             box-shadow: 0 6px 25px var(--neon-glow);
         }
+
         .send-button:active {
             transform: scale(0.95);
         }
+
         .send-button svg {
             width: 20px;
             height: 20px;
             fill: white;
             transition: var(--transition);
         }
+
         .send-button:hover svg {
             transform: translateX(2px);
         }
+
         /* ========== Responsive Design ========== */
         @media (max-width: 768px) {
             .header {
                 padding: 16px 20px;
             }
+
             .brand-text {
                 font-size: 16px;
                 letter-spacing: 2px;
             }
+
             .message-bubble {
                 max-width: 85%;
                 font-size: 14px;
                 padding: 12px 16px;
             }
+
             .input-container {
                 padding: 12px 16px 20px 16px;
             }
+
             .send-button {
                 width: 40px;
                 height: 40px;
             }
+
             .send-button svg {
                 width: 18px;
                 height: 18px;
             }
+
+            /* Settings Modal — Tablet */
+            .settings-card {
+                padding: 28px 24px 24px;
+            }
+
+            .settings-btn {
+                width: 36px;
+                height: 36px;
+            }
+
+            .settings-btn svg {
+                width: 18px;
+                height: 18px;
+            }
         }
+
         @media (max-width: 480px) {
             .header {
                 padding: 14px 16px;
             }
+
             .brand-text {
                 font-size: 14px;
                 letter-spacing: 1.5px;
             }
-            .theme-toggle {
-                width: 46px;
-                height: 24px;
-            }
-            .theme-toggle::before {
-                width: 18px;
-                height: 18px;
-            }
-            [data-theme="dark"] .theme-toggle::before {
-                transform: translateX(22px);
-            }
+
             .message-bubble {
                 max-width: 90%;
                 font-size: 14px;
                 padding: 10px 14px;
             }
+
             .input-wrapper {
                 padding: 6px 10px;
+                border-width: 1.5px;
             }
+
+            .input-wrapper:focus-within {
+                box-shadow: 0 0 12px var(--input-glow);
+            }
+
             textarea {
                 font-size: 15px;
                 padding: 6px 2px;
             }
+
             .input-container {
-                padding: 10px 14px env(safe-area-inset-bottom) 16px 14px;
+                padding: 10px 12px 16px 12px;
+                padding-bottom: max(16px, env(safe-area-inset-bottom));
+            }
+
+            /* Settings Modal — Mobile (bottom-sheet style) */
+            .settings-overlay {
+                align-items: flex-end;
+            }
+
+            .settings-card {
+                width: 100%;
+                max-width: 100%;
+                border-radius: 20px 20px 0 0;
+                padding: 24px 20px max(20px, env(safe-area-inset-bottom));
+                box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.3);
+                transform: translateY(100%) scale(1);
+            }
+
+            .settings-overlay.active .settings-card {
+                transform: translateY(0) scale(1);
+            }
+
+            .settings-card-header {
+                margin-bottom: 20px;
+            }
+
+            .settings-card-title {
+                font-size: 16px;
+            }
+
+            .settings-row {
+                padding: 14px 0;
+            }
+
+            .settings-row-label {
+                font-size: 14px;
+            }
+
+            .settings-row-sublabel {
+                font-size: 11px;
+            }
+
+            .settings-input {
+                width: 140px;
+                font-size: 13px;
+            }
+
+            .toggle-track {
+                width: 44px;
+                height: 26px;
+                border-radius: 13px;
+            }
+
+            .toggle-knob {
+                width: 18px;
+                height: 18px;
+                top: 3px;
+                left: 3px;
+            }
+
+            .toggle-track.on .toggle-knob {
+                transform: translateX(18px);
+            }
+
+            .settings-btn {
+                width: 34px;
+                height: 34px;
+            }
+
+            .settings-btn svg {
+                width: 16px;
+                height: 16px;
             }
         }
+
         /* ========== Keyboard Safe Area ========== */
         @supports (padding: max(0px)) {
             .input-container {
-                padding-bottom: max(24px, env(safe-area-inset-bottom));
+                padding-bottom: max(20px, env(safe-area-inset-bottom));
             }
         }
+
         /* ========== Welcome Message ========== */
         .welcome-message {
             text-align: center;
             padding: 40px 20px;
             color: var(--text-secondary);
         }
+
         .welcome-message h2 {
             font-size: 28px;
             font-weight: 600;
             margin-bottom: 12px;
             color: var(--text-color);
         }
+
         .welcome-message p {
             font-size: 16px;
             line-height: 1.6;
         }
+
         @media (max-width: 480px) {
             .welcome-message h2 {
                 font-size: 24px;
             }
+
             .welcome-message p {
                 font-size: 14px;
             }
         }
+
         /* ========== Smooth Animations ========== */
         * {
             -webkit-tap-highlight-color: transparent;
         }
+
         button {
             -webkit-tap-highlight-color: transparent;
             tap-highlight-color: transparent;
         }
+
+        /* ========== Settings Gear Button ========== */
+        .settings-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--input-border);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-color);
+        }
+
+        .settings-btn:hover {
+            border-color: var(--user-bubble);
+            box-shadow: 0 0 20px var(--input-glow);
+            background: var(--input-bg);
+        }
+
+        .settings-btn:active {
+            transform: scale(0.93);
+        }
+
+        .settings-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .settings-btn:hover svg {
+            transform: rotate(45deg);
+        }
+
+        /* ========== Settings Modal ========== */
+        .settings-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.35s ease, visibility 0.35s ease;
+        }
+
+        .settings-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .settings-card {
+            width: 90%;
+            max-width: 420px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(40px) saturate(1.5);
+            -webkit-backdrop-filter: blur(40px) saturate(1.5);
+            border: 1px solid var(--input-border);
+            border-radius: 20px;
+            padding: 32px 28px 28px;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+            transform: translateY(24px) scale(0.96);
+            opacity: 0;
+            transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
+            position: relative;
+        }
+
+        .settings-overlay.active .settings-card {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .settings-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 28px;
+        }
+
+        .settings-card-title {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            color: var(--text-color);
+        }
+
+        .settings-close-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-secondary);
+        }
+
+        .settings-close-btn:hover {
+            background: var(--bot-bubble);
+            color: var(--text-color);
+            border-color: var(--user-bubble);
+        }
+
+        .settings-close-btn:active {
+            transform: scale(0.9);
+        }
+
+        .settings-close-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+            stroke-linecap: round;
+        }
+
+        /* ========== Settings Rows ========== */
+        .settings-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--input-border);
+        }
+
+        .settings-row:last-child {
+            border-bottom: none;
+        }
+
+        .settings-row-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-color);
+            letter-spacing: 0.1px;
+        }
+
+        .settings-row-sublabel {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        /* ========== Display Name Input ========== */
+        .settings-input {
+            width: 180px;
+            padding: 8px 0;
+            background: transparent;
+            border: none;
+            border-bottom: 1.5px solid var(--input-border);
+            outline: none;
+            color: var(--text-color);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            text-align: right;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .settings-input::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.6;
+        }
+
+        .settings-input:focus {
+            border-bottom-color: var(--user-bubble);
+            box-shadow: 0 2px 0 0 var(--neon-glow);
+        }
+
+        /* ========== iOS-style Toggle ========== */
+        .toggle-track {
+            width: 48px;
+            height: 28px;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 14px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s ease, border-color 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .toggle-track.on {
+            background: var(--user-bubble);
+            border-color: var(--user-bubble);
+        }
+
+        .toggle-knob {
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            background: #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .toggle-track.on .toggle-knob {
+            transform: translateX(20px);
+        }
+
         /* ========== Performance Optimization ========== */
         .message,
         .typing-indicator,
         .input-wrapper,
-        .theme-toggle {
+        .settings-card,
+        .settings-overlay {
             will-change: transform;
         }
     </style>
 </head>
+
 <body>
     <!-- Header -->
     <header class="header">
         <div class="brand"></div>
         <div class="header-right">
             <span class="brand-text">ZEN AI</span>
-            <div class="theme-toggle" id="themeToggle" title="Toggle theme"></div>
+            <button class="settings-btn" id="settingsBtn" title="Settings" aria-label="Open settings">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="3" />
+                    <path
+                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+            </button>
         </div>
     </header>
+    <!-- Settings Modal -->
+    <div class="settings-overlay" id="settingsOverlay">
+        <div class="settings-card" id="settingsCard">
+            <div class="settings-card-header">
+                <span class="settings-card-title">Settings</span>
+                <button class="settings-close-btn" id="settingsCloseBtn" title="Close" aria-label="Close settings">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div class="settings-group">
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-row-label">Display Name</div>
+                        <div class="settings-row-sublabel">Visible in conversations</div>
+                    </div>
+                    <input type="text" class="settings-input" id="displayNameInput" placeholder="Enter name"
+                        maxlength="32" autocomplete="off" spellcheck="false" />
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-row-label">Push Notifications</div>
+                        <div class="settings-row-sublabel">Receive alerts</div>
+                    </div>
+                    <div class="toggle-track" id="notifToggle" role="switch" aria-checked="false" tabindex="0">
+                        <div class="toggle-knob"></div>
+                    </div>
+                </div>
+                <div class="settings-row">
+                    <div>
+                        <div class="settings-row-label">Dark Mode</div>
+                        <div class="settings-row-sublabel">Reduce eye strain</div>
+                    </div>
+                    <div class="toggle-track" id="themeToggleSwitch" role="switch" aria-checked="false" tabindex="0">
+                        <div class="toggle-knob"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Main Container -->
     <div class="container">
         <!-- Chat Messages -->
@@ -498,14 +900,10 @@
         <!-- Input Area -->
         <div class="input-container">
             <div class="input-wrapper">
-                <textarea 
-                    id="messageInput" 
-                    placeholder="Type your message..." 
-                    rows="1"
-                ></textarea>
+                <textarea id="messageInput" placeholder="Type your message..." rows="1"></textarea>
                 <button class="send-button" id="sendButton" title="Send message">
                     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                     </svg>
                 </button>
             </div>
@@ -513,27 +911,89 @@
     </div>
     <script>
         // ========== DOM Elements ==========
-        const themeToggle = document.getElementById('themeToggle');
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
         const messagesContainer = document.getElementById('messages');
         const chatContainer = document.getElementById('chatContainer');
         const welcomeMessage = document.getElementById('welcomeMessage');
-        // ========== Theme Toggle ==========
+
+        // ========== Settings Modal ==========
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsOverlay = document.getElementById('settingsOverlay');
+        const settingsCard = document.getElementById('settingsCard');
+        const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+        const displayNameInput = document.getElementById('displayNameInput');
+        const notifToggle = document.getElementById('notifToggle');
+        const themeToggleSwitch = document.getElementById('themeToggleSwitch');
+
+        function openSettings() {
+            settingsOverlay.classList.add('active');
+        }
+        function closeSettings() {
+            settingsOverlay.classList.remove('active');
+        }
+        settingsBtn.addEventListener('click', openSettings);
+        settingsCloseBtn.addEventListener('click', closeSettings);
+        // Close on overlay click (but not card click)
+        settingsOverlay.addEventListener('click', (e) => {
+            if (e.target === settingsOverlay) closeSettings();
+        });
+        // Close on Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && settingsOverlay.classList.contains('active')) closeSettings();
+        });
+
+        // ========== iOS Toggle Helper ==========
+        function setupToggle(el, storageKey, onChange) {
+            const saved = localStorage.getItem(storageKey);
+            if (saved === 'true') el.classList.add('on');
+            el.setAttribute('aria-checked', saved === 'true');
+            el.addEventListener('click', () => {
+                const isOn = el.classList.toggle('on');
+                el.setAttribute('aria-checked', isOn);
+                localStorage.setItem(storageKey, isOn);
+                if (onChange) onChange(isOn);
+            });
+            // Keyboard accessibility
+            el.addEventListener('keydown', (e) => {
+                if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); el.click(); }
+            });
+        }
+
+        // ========== Push Notifications Toggle ==========
+        setupToggle(notifToggle, 'zen-push-notifications');
+
+        // ========== Theme Toggle (moved into modal) ==========
         function setTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
-        }
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            setTheme(newTheme);
+            // Sync toggle UI
+            if (theme === 'dark') {
+                themeToggleSwitch.classList.add('on');
+                themeToggleSwitch.setAttribute('aria-checked', 'true');
+            } else {
+                themeToggleSwitch.classList.remove('on');
+                themeToggleSwitch.setAttribute('aria-checked', 'false');
+            }
         }
         // Initialize theme
-        const savedTheme = localStorage.getItem('theme') || 
-                          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        const savedTheme = localStorage.getItem('theme') ||
+            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         setTheme(savedTheme);
-        themeToggle.addEventListener('click', toggleTheme);
+        // Theme toggle click
+        themeToggleSwitch.addEventListener('click', () => {
+            const cur = document.documentElement.getAttribute('data-theme');
+            setTheme(cur === 'dark' ? 'light' : 'dark');
+        });
+        themeToggleSwitch.addEventListener('keydown', (e) => {
+            if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); themeToggleSwitch.click(); }
+        });
+
+        // ========== Display Name ==========
+        displayNameInput.value = localStorage.getItem('zen-display-name') || '';
+        displayNameInput.addEventListener('input', () => {
+            localStorage.setItem('zen-display-name', displayNameInput.value);
+        });
         // ========== Auto-resize Textarea ==========
         function autoResizeTextarea() {
             messageInput.style.height = 'auto';
@@ -541,12 +1001,11 @@
             messageInput.style.height = newHeight + 'px';
         }
         messageInput.addEventListener('input', autoResizeTextarea);
-        // ========== Session ID (for conversation memory) ==========
-        const SESSION_ID = 'session_' + Math.random().toString(36).substr(2, 9);
+
         // ========== Send Message ==========
         async function sendMessage() {
             const message = messageInput.value.trim();
-            
+
             if (!message) return;
             // Hide welcome message
             if (welcomeMessage) {
@@ -567,8 +1026,16 @@
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message, session_id: SESSION_ID })
+                    body: JSON.stringify({ message: message })
                 });
+
+                // If the user's session has expired, redirect to login
+                if (response.status === 401) {
+                    hideTypingIndicator();
+                    window.location.href = '/login';
+                    return;
+                }
+
                 const data = await response.json();
                 hideTypingIndicator();
                 const botReply = data.response || 'No response received.';
@@ -586,14 +1053,14 @@
         function addMessage(text, type) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}`;
-            
+
             const bubble = document.createElement('div');
             bubble.className = 'message-bubble';
             bubble.textContent = text;
-            
+
             messageDiv.appendChild(bubble);
             messagesContainer.appendChild(messageDiv);
-            
+
             // Scroll to bottom
             scrollToBottom();
         }
@@ -603,20 +1070,20 @@
             if (typingIndicator) return;
             const indicatorDiv = document.createElement('div');
             indicatorDiv.className = 'message bot';
-            
+
             const indicator = document.createElement('div');
             indicator.className = 'typing-indicator';
-            
+
             for (let i = 0; i < 4; i++) {
                 const dot = document.createElement('div');
                 dot.className = 'dot';
                 indicator.appendChild(dot);
             }
-            
+
             indicatorDiv.appendChild(indicator);
             messagesContainer.appendChild(indicatorDiv);
             typingIndicator = indicatorDiv;
-            
+
             scrollToBottom();
         }
         function hideTypingIndicator() {
@@ -639,13 +1106,17 @@
                 sendMessage();
             }
         });
-        // ========== Initial Focus ==========
-        messageInput.focus();
+        // ========== Initial Focus (skip on touch devices to avoid keyboard popup) ==========
+        if (!('ontouchstart' in window)) {
+            messageInput.focus();
+        }
         // ========== Handle Keyboard Open on Mobile ==========
-        const visualViewport = window.visualViewport;
-        if (visualViewport) {
-            visualViewport.addEventListener('resize', () => {
-                document.body.style.height = visualViewport.height + 'px';
+        // The meta viewport tag `interactive-widget=resizes-content` makes
+        // Android Chrome resize the layout viewport when the keyboard opens,
+        // so our flex layout naturally adapts. This is a minimal fallback
+        // for older browsers that don't support it.
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
                 scrollToBottom();
             });
         }
@@ -655,4 +1126,5 @@
         });
     </script>
 </body>
+
 </html>
