@@ -193,4 +193,6 @@ f"The user's name is {user_name}.\n\n"
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    # Grab the port from the cloud host, but fall back to 10000 for local testing
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
