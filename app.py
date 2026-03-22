@@ -118,6 +118,22 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/update_name", methods=["POST"])
+def update_name():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.get_json()
+    session["display_name"] = data.get("display_name", "").strip()[:32]
+    return jsonify({"status": "ok"})
+
+
+@app.route("/get_display_name")
+def get_display_name():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({"display_name": session.get("display_name", "")})
+
+
 @app.route("/chat", methods=["POST"])
 def chat():
     if "user" not in session:
@@ -172,6 +188,11 @@ f"The user's name is {user_name}.\n\n"
         if memories:
             memories_text = "\n".join(f"- {m}" for m in memories)
             system_prompt += f"\n\nHere are some relevant past memories about this user:\n{memories_text}"
+
+        # --- Display Name: override how ZEN addresses the user ---
+        display_name = session.get("display_name")
+        if display_name:
+            system_prompt += f"\n\nCRITICAL INSTRUCTION: The user prefers to be called '{display_name}'. Address them by this name naturally in conversation."
 
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",

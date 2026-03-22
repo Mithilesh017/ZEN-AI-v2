@@ -825,6 +825,43 @@
         .settings-overlay {
             will-change: transform;
         }
+
+        /* ========== Settings Save Button ========== */
+        .settings-save-footer {
+            margin-top: 24px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .settings-save-btn {
+            padding: 10px 32px;
+            background: linear-gradient(135deg, var(--user-bubble) 0%, #0056D6 100%);
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px var(--neon-glow);
+        }
+
+        .settings-save-btn:hover {
+            transform: translateY(-1px) scale(1.03);
+            box-shadow: 0 6px 25px var(--neon-glow);
+        }
+
+        .settings-save-btn:active {
+            transform: translateY(0) scale(0.97);
+        }
+
+        .settings-save-btn.saved {
+            background: linear-gradient(135deg, #34C759 0%, #28a745 100%);
+            box-shadow: 0 4px 15px rgba(52, 199, 89, 0.4);
+            pointer-events: none;
+        }
     </style>
 </head>
 
@@ -882,6 +919,10 @@
                         <div class="toggle-knob"></div>
                     </div>
                 </div>
+            </div>
+            <!-- Save Button -->
+            <div class="settings-save-footer">
+                <button class="settings-save-btn" id="settingsSaveBtn">Save</button>
             </div>
         </div>
     </div>
@@ -990,9 +1031,54 @@
         });
 
         // ========== Display Name ==========
-        displayNameInput.value = localStorage.getItem('zen-display-name') || '';
-        displayNameInput.addEventListener('input', () => {
-            localStorage.setItem('zen-display-name', displayNameInput.value);
+        const settingsSaveBtn = document.getElementById('settingsSaveBtn');
+
+        // Load display name from server when modal opens
+        const originalOpenSettings = openSettings;
+        openSettings = function () {
+            originalOpenSettings();
+            fetch('/get_display_name')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.display_name !== undefined) {
+                        displayNameInput.value = d.display_name;
+                        localStorage.setItem('zen-display-name', d.display_name);
+                    }
+                })
+                .catch(() => {
+                    // Fallback to localStorage
+                    displayNameInput.value = localStorage.getItem('zen-display-name') || '';
+                });
+        };
+        // Re-bind the settings button to the new openSettings
+        settingsBtn.removeEventListener('click', originalOpenSettings);
+        settingsBtn.addEventListener('click', openSettings);
+
+        // Save button click handler
+        settingsSaveBtn.addEventListener('click', async () => {
+            const name = displayNameInput.value.trim();
+            settingsSaveBtn.disabled = true;
+            try {
+                const res = await fetch('/update_name', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ display_name: name })
+                });
+                if (res.ok) {
+                    localStorage.setItem('zen-display-name', name);
+                    settingsSaveBtn.textContent = 'Saved ✓';
+                    settingsSaveBtn.classList.add('saved');
+                    setTimeout(() => {
+                        settingsSaveBtn.textContent = 'Save';
+                        settingsSaveBtn.classList.remove('saved');
+                        settingsSaveBtn.disabled = false;
+                    }, 1500);
+                } else {
+                    settingsSaveBtn.disabled = false;
+                }
+            } catch {
+                settingsSaveBtn.disabled = false;
+            }
         });
         // ========== Auto-resize Textarea ==========
         function autoResizeTextarea() {
