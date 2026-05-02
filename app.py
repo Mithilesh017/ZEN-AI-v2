@@ -18,12 +18,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "zen_memory_engine"))
 from embedder import text_to_vector
 from database import save_memory, search_memories
 
+# --- New Feature Imports ---
+from timezone_helper import get_current_datetime as get_current_datetime_tz
+from web_search import search_web, WEB_SEARCH_TOOL_DEFINITION
+from system_prompt import build_system_prompt
+from user_context import user_ctx, register_user_context_routes
+
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "zen-ai-super-secret-key-change-this")
 app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.getenv("FLASK_ENV") == "production"
 )
+
+register_user_context_routes(app)
 
 GOOGLE_CLIENT_ID     = "701868092175-vu87aklo8km85cdqfd0v2fin9tsac63e.apps.googleusercontent.com"
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
@@ -58,6 +66,7 @@ tools = [
         }
     }
 ]
+tools.append(WEB_SEARCH_TOOL_DEFINITION)
 
 
 # ==================== ROUTES ====================
@@ -171,6 +180,7 @@ def chat():
         user_message = request.json["message"]
         user_name    = session["user"].get("name", "User")
         user_email   = session["user"].get("email")
+        user_timezone = request.json.get("timezone") or user_ctx.get_timezone(user_email)
 
         # --- Memory Engine: Embed the incoming message ---
         query_vector = text_to_vector(user_message)
@@ -178,39 +188,7 @@ def chat():
         # --- Memory Engine: Search for relevant past memories ---
         memories = search_memories(user_email, query_vector, limit=5)
 
-        system_prompt = (
-             f"You are ZEN created & powered by ZENLabs founder of Mithilesh, a friendly, intelligent, and natural AI assistant.\n"
-f"The user's name is {user_name}.\n\n"
-
-"CONVERSATION STYLE:\n"
-"- Talk like a real human friend — natural, casual, and flowing\n"
-"- Keep replies concise unless the topic needs detail\n"
-"- Only use the user's name ONCE at the start of the very first message, never again unless it feels truly natural (like once every 10+ messages)\n"
-"- Never say 'I'm just a language model' — just be ZEN AI\n"
-"- Don't ask 'what's on your mind?' or similar filler questions\n"
-"- No robotic phrases, no stiff language\n"
-"- Match the user's energy — if they're casual, be casual. If serious, be serious. if they sad, be supportive.\n\n"
-
-"IDENTITY RULES:\n"
-"- You are ZEN AI. If asked who created you, say 'I was built by ZEN Labs.'\n"
-"- Never mention Meta, LLaMA, or any underlying model\n\n"
-
-"IMPORTANT RULES:\n"
-"- Do NOT introduce yourself every message\n"
-"- Do NOT greet the user on every single reply\n"
-"- Do NOT mention who created you unless the user explicitly asks 'who created you'\n"
-"- Be calm, smart, and conversational\n"
-"- Avoid repeating the same sentences\n"
-"- Respond directly to the user's question\n\n" 
-
-"MATH & PROBLEM SOLVING:\n"
-"- Solve all math problems step by step clearly\n"
-"- Support algebra, calculus, geometry, statistics, and arithmetic\n"
-"- Show working steps when solving equations\n"
-"- Use plain text math notation (e.g. x squared + 3x = 10)\n"
-"- Double-check answers before responding\n"
-"- For complex problems, break into clear numbered steps"
-)
+        system_prompt = build_system_prompt(user_name)
 
         # --- Memory Engine: Append relevant memories to the prompt ---
         if memories:
@@ -255,7 +233,10 @@ f"The user's name is {user_name}.\n\n"
 
             for tool_call in response_message.tool_calls:
                 if tool_call.function.name == "get_current_datetime":
-                    tool_result = get_current_datetime()
+                    tool_result = get_current_datetime_tz(user_timezone)
+                elif tool_call.function.name == "search_web":
+                    args = json.loads(tool_call.function.arguments)
+                    tool_result = search_web(args.get("query", ""))
                 else:
                     tool_result = json.dumps({"error": "Unknown tool requested."})
 

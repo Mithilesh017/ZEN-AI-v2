@@ -5,3 +5,4 @@ gunicorn
 google-auth
 requests
 pinecone
+tzdata
