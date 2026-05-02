@@ -3,11 +3,14 @@
 # ============================================================
 #
 # Uses DuckDuckGo HTML search (no API key required).
+# Auto-detects "news/latest/recent" queries and applies date
+# filters so results are actually current.
 # Only uses the `requests` library (already in requirements.txt).
 # ============================================================
 
 import re
 import requests
+from datetime import datetime, timezone
 
 # ── Groq tool definition (ready to append to the tools list) ──────
 
@@ -46,6 +49,43 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+# ── Keywords that signal the user wants RECENT results ────────────
+
+_RECENCY_KEYWORDS = [
+    "latest", "recent", "today", "news", "current", "now",
+    "this week", "this month", "update", "updates", "breaking",
+    "new", "just", "live", "trending", "2026", "2025",
+    "stock", "price", "score", "weather", "launch", "release",
+    "announced", "launched", "worth", "how much is",
+]
+
+
+def _needs_recency_filter(query: str) -> str:
+    """
+    Detect if the query is asking for recent/current information.
+    Returns DuckDuckGo date filter value:
+      - 'w'  = past week  (for news/latest/today queries)
+      - 'm'  = past month (for broader recent queries)
+      - ''   = no filter  (for factual/evergreen queries)
+    """
+    q = query.lower()
+
+    # Strong recency signals → past week
+    strong = ["today", "latest", "breaking", "live", "this week",
+              "news", "score", "weather", "stock", "price", "worth",
+              "how much is", "trending"]
+    if any(kw in q for kw in strong):
+        return "w"
+
+    # Moderate recency signals → past month
+    moderate = ["recent", "new", "update", "updates", "current",
+                "launch", "launched", "release", "announced",
+                "2026", "2025", "this month"]
+    if any(kw in q for kw in moderate):
+        return "m"
+
+    return ""
+
 
 # ── Core search function ──────────────────────────────────────────
 
@@ -55,18 +95,31 @@ def search_web(query: str) -> str:
     suitable for feeding back to the LLM as tool output.
 
     Strategy (in order):
-      1. DuckDuckGo HTML lite — parse titles + snippets.
+      1. DuckDuckGo HTML lite with auto date-filter — parse titles + snippets.
       2. DuckDuckGo Instant Answer API — for direct facts.
       3. Graceful fallback message.
     """
     if not query or not query.strip():
         return "No search query provided."
 
-    # ---------- Attempt 1: DuckDuckGo HTML Lite ----------
-    results = _search_ddg_html(query)
+    # Determine if we need date filtering for freshness
+    date_filter = _needs_recency_filter(query)
+
+    # ---------- Attempt 1: DuckDuckGo HTML (with date filter) ----------
+    results = _search_ddg_html(query, date_filter=date_filter)
+
+    # If date-filtered search returned too few results, retry without filter
+    if len(results) < 2 and date_filter:
+        results = _search_ddg_html(query, date_filter="")
+
     if results:
-        header = f"Web search results for: {query}\n" + "=" * 50 + "\n\n"
-        body = "\n\n".join(results[:6])
+        now = datetime.now(timezone.utc).strftime("%B %d, %Y")
+        header = (
+            f"Web search results for: {query}\n"
+            f"Search date: {now}\n"
+            + "=" * 50 + "\n\n"
+        )
+        body = "\n\n".join(results[:8])
         return header + body
 
     # ---------- Attempt 2: DuckDuckGo Instant Answer API ----------
@@ -81,15 +134,23 @@ def search_web(query: str) -> str:
     )
 
 
-def _search_ddg_html(query: str) -> list:
+def _search_ddg_html(query: str, date_filter: str = "") -> list:
     """
     Fetch search results from DuckDuckGo HTML lite and parse
     out titles, URLs, and snippets.
+
+    Args:
+        query: Search query string.
+        date_filter: DuckDuckGo date filter ('d'=day, 'w'=week, 'm'=month, ''=none).
     """
     try:
+        post_data = {"q": query, "b": ""}
+        if date_filter:
+            post_data["df"] = date_filter
+
         resp = requests.post(
             "https://html.duckduckgo.com/html/",
-            data={"q": query, "b": ""},
+            data=post_data,
             headers=_HEADERS,
             timeout=10,
         )
@@ -99,12 +160,7 @@ def _search_ddg_html(query: str) -> list:
         html = resp.text
         results = []
 
-        # Parse result blocks — each result has a title link and a snippet
-        # Title links: <a class="result__a" href="...">Title</a>
-        # Snippets: <a class="result__snippet" ...>Snippet text</a>
-        #        or <td class="result__snippet">...</td>
-
-        # Find all result blocks
+        # Parse result blocks
         title_pattern = re.compile(
             r'class="result__a"[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
             re.DOTALL
@@ -117,7 +173,7 @@ def _search_ddg_html(query: str) -> list:
         titles = title_pattern.findall(html)
         snippets = snippet_pattern.findall(html)
 
-        for i in range(min(len(titles), len(snippets), 8)):
+        for i in range(min(len(titles), len(snippets), 10)):
             url = titles[i][0]
             title = _strip_tags(titles[i][1]).strip()
             snippet = _strip_tags(snippets[i]).strip()
@@ -189,6 +245,5 @@ def _strip_tags(text: str) -> str:
     text = text.replace("&quot;", '"')
     text = text.replace("&#x27;", "'")
     text = text.replace("&nbsp;", " ")
-    # Collapse whitespace
     text = re.sub(r"\s+", " ", text)
     return text.strip()
