@@ -4,6 +4,7 @@ import sys
 import json
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Load env vars BEFORE importing memory engine modules
@@ -30,6 +31,33 @@ REDIRECT_URI         = os.getenv("REDIRECT_URI", "http://localhost:10000/callbac
 
 api_key = os.getenv("GROQ_API_KEY")
 client  = Groq(api_key=api_key)
+
+
+def get_current_datetime():
+    now = datetime.now().astimezone()
+    return json.dumps({
+        "date": now.strftime("%Y-%m-%d"),
+        "time": now.strftime("%H:%M:%S"),
+        "day_of_week": now.strftime("%A"),
+        "timezone": now.strftime("%Z"),
+        "utc_offset": now.strftime("%z")
+    })
+
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_datetime",
+            "description": "Get the user's current date, time, day of the week, timezone, and UTC offset.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    }
+]
 
 
 # ==================== ROUTES ====================
@@ -194,13 +222,53 @@ f"The user's name is {user_name}.\n\n"
         if display_name:
             system_prompt += f"\n\nCRITICAL INSTRUCTION: The user prefers to be called '{display_name}'. Address them by this name naturally in conversation."
 
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
+
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ]
+            messages=messages,
+            tools=tools,
+            tool_choice="auto"
         )
+
+        response_message = response.choices[0].message
+
+        if response_message.tool_calls:
+            messages.append({
+                "role": "assistant",
+                "content": response_message.content,
+                "tool_calls": [
+                    {
+                        "id": tool_call.id,
+                        "type": tool_call.type,
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments
+                        }
+                    }
+                    for tool_call in response_message.tool_calls
+                ]
+            })
+
+            for tool_call in response_message.tool_calls:
+                if tool_call.function.name == "get_current_datetime":
+                    tool_result = get_current_datetime()
+                else:
+                    tool_result = json.dumps({"error": "Unknown tool requested."})
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": tool_result
+                })
+
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages
+            )
 
         reply = response.choices[0].message.content
 
