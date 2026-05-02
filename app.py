@@ -205,15 +205,26 @@ def chat():
             {"role": "user", "content": user_message}
         ]
 
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            tools=tools,
-            tool_choice="auto"
-        )
+        # --- First Groq call (with tools enabled) ---
+        try:
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages,
+                tools=tools,
+                tool_choice="auto"
+            )
+        except Exception as tool_err:
+            # Groq sometimes returns 400 "tool_use_failed" when the model
+            # generates a malformed tool call.  Retry without tools.
+            print(f"[ZEN] Tool call failed, retrying without tools: {tool_err}")
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=messages
+            )
 
         response_message = response.choices[0].message
 
+        # --- Handle tool calls (if any) ---
         if response_message.tool_calls:
             messages.append({
                 "role": "assistant",
@@ -246,10 +257,19 @@ def chat():
                     "content": tool_result
                 })
 
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=messages
-            )
+            try:
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages
+                )
+            except Exception as followup_err:
+                # If the follow-up also fails, strip tool messages and retry
+                print(f"[ZEN] Follow-up failed, retrying clean: {followup_err}")
+                clean_messages = [m for m in messages if m["role"] in ("system", "user")]
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=clean_messages
+                )
 
         reply = response.choices[0].message.content
 

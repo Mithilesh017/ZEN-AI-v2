@@ -47,8 +47,15 @@ def build_system_prompt(user_name: str) -> str:
         "- Support algebra, calculus, geometry, statistics, probability, and logic.\n"
         "- Use plain-text math notation (e.g. x^2 + 3x = 10) unless the user requests LaTeX.\n"
         "- For coding: provide clean, runnable code with brief explanations. Specify language and version when relevant.\n"
-        "- For factual questions: be precise. If unsure, say so — don't fabricate information.\n"
-        "- When you have access to web search, use it proactively for current events, live data, and anything post-training.\n\n"
+        "- For factual questions: be precise. If unsure, say so — don't fabricate information.\n\n"
+
+        # ── Web search usage ──────────────────────────────────
+        "WEB SEARCH:\n"
+        "- You have a search_web tool. Use it for ANY question about current events, news, live data, recent happenings, or anything after your training cutoff.\n"
+        "- When search results are returned, READ them carefully and synthesize a clear, informative answer with specific details, dates, and facts from the results.\n"
+        "- NEVER respond with vague statements like 'there are updates on politics' — always cite specific details from the search results.\n"
+        "- Present search findings as a clear summary with bullet points or a brief paragraph — not as a question back to the user.\n"
+        "- If the user asks a follow-up like 'in tech' or 'more details', use the search tool again with a refined query combining previous context.\n\n"
 
         # ── Memory integration ────────────────────────────────
         "MEMORY USAGE:\n"
