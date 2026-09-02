@@ -208,7 +208,7 @@ def chat():
         # --- First Groq call (with tools enabled) ---
         try:
             response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
                 messages=messages,
                 tools=tools,
                 tool_choice="auto"
@@ -218,7 +218,7 @@ def chat():
             # generates a malformed tool call.  Retry without tools.
             print(f"[ZEN] Tool call failed, retrying without tools: {tool_err}")
             response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
                 messages=messages
             )
 
@@ -259,7 +259,7 @@ def chat():
 
             try:
                 response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=messages
                 )
             except Exception as followup_err:
@@ -267,7 +267,7 @@ def chat():
                 print(f"[ZEN] Follow-up failed, retrying clean: {followup_err}")
                 clean_messages = [m for m in messages if m["role"] in ("system", "user")]
                 response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
                     messages=clean_messages
                 )
 
