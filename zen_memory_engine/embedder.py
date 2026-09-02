@@ -58,7 +58,7 @@ def text_to_vector(text: str) -> list[float]:
     headers = {"Authorization": f"Bearer {hf_token}"}
     payload = {"inputs": text, "options": {"wait_for_model": True}}
 
-    response = requests.post(HF_API_URL, headers=headers, json=payload)
+    response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=15)
 
     if response.status_code != 200:
         raise RuntimeError(

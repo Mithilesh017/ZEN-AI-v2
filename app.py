@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 import os
 import sys
 import json
+import logging
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -23,9 +24,24 @@ from timezone_helper import get_current_datetime as get_current_datetime_tz
 from web_search import search_web, WEB_SEARCH_TOOL_DEFINITION
 from system_prompt import build_system_prompt
 from user_context import user_ctx, register_user_context_routes
+from chat_memory import chat_memory
+
+# --- Structured Logging ---
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("zen-ai")
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "zen-ai-super-secret-key-change-this")
+
+# --- Mandatory secret key in production ---
+_secret = os.getenv("SECRET_KEY")
+if not _secret and os.getenv("FLASK_ENV") == "production":
+    raise RuntimeError("SECRET_KEY environment variable must be set in production")
+app.secret_key = _secret or "dev-only-fallback-key"
+
 app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.getenv("FLASK_ENV") == "production"
@@ -33,7 +49,7 @@ app.config.update(
 
 register_user_context_routes(app)
 
-GOOGLE_CLIENT_ID     = "701868092175-vu87aklo8km85cdqfd0v2fin9tsac63e.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "701868092175-vu87aklo8km85cdqfd0v2fin9tsac63e.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 REDIRECT_URI         = os.getenv("REDIRECT_URI", "http://localhost:10000/callback")
 
@@ -69,7 +85,16 @@ tools = [
 tools.append(WEB_SEARCH_TOOL_DEFINITION)
 
 
+# --- Constants ---
+MAX_MESSAGE_LENGTH = 4000
+
+
 # ==================== ROUTES ====================
+
+@app.route("/health")
+def health():
+    """Liveness probe for monitoring and uptime checks."""
+    return jsonify({"status": "ok", "service": "zen-ai", "version": "2.1.0"})
 
 @app.route("/")
 def home():
@@ -145,7 +170,7 @@ def callback():
         return redirect(url_for("home"))
 
     except Exception as e:
-        print("OAuth callback error:", e)
+        logger.exception("OAuth callback error")
         return redirect(url_for("login") + "?error=server_error")
 
 
@@ -177,10 +202,20 @@ def chat():
         return jsonify({"response": "Unauthorized. Please log in."}), 401
 
     try:
-        user_message = request.json["message"]
+        # --- Input validation ---
+        data = request.get_json(silent=True)
+        if not data or not isinstance(data.get("message"), str):
+            return jsonify({"response": "Please provide a valid message."}), 400
+
+        user_message = data["message"].strip()
+        if not user_message:
+            return jsonify({"response": "Message cannot be empty."}), 400
+        if len(user_message) > MAX_MESSAGE_LENGTH:
+            return jsonify({"response": f"Message too long. Please keep it under {MAX_MESSAGE_LENGTH} characters."}), 400
+
         user_name    = session["user"].get("name", "User")
         user_email   = session["user"].get("email")
-        user_timezone = request.json.get("timezone") or user_ctx.get_timezone(user_email)
+        user_timezone = data.get("timezone") or user_ctx.get_timezone(user_email)
 
         # --- Memory Engine: Embed the incoming message ---
         query_vector = text_to_vector(user_message)
@@ -200,8 +235,12 @@ def chat():
         if display_name:
             system_prompt += f"\n\nCRITICAL INSTRUCTION: The user prefers to be called '{display_name}'. Address them by this name naturally in conversation."
 
+        # --- Conversation History: include recent context ---
+        history = chat_memory.get_history(user_email)
+
         messages = [
             {"role": "system", "content": system_prompt},
+            *history,
             {"role": "user", "content": user_message}
         ]
 
@@ -216,7 +255,7 @@ def chat():
         except Exception as tool_err:
             # Groq sometimes returns 400 "tool_use_failed" when the model
             # generates a malformed tool call.  Retry without tools.
-            print(f"[ZEN] Tool call failed, retrying without tools: {tool_err}")
+            logger.warning("Tool call failed, retrying without tools: %s", tool_err)
             response = client.chat.completions.create(
                 model="openai/gpt-oss-120b",
                 messages=messages
@@ -264,7 +303,7 @@ def chat():
                 )
             except Exception as followup_err:
                 # If the follow-up also fails, strip tool messages and retry
-                print(f"[ZEN] Follow-up failed, retrying clean: {followup_err}")
+                logger.warning("Follow-up failed, retrying clean: %s", followup_err)
                 clean_messages = [m for m in messages if m["role"] in ("system", "user")]
                 response = client.chat.completions.create(
                     model="openai/gpt-oss-120b",
@@ -273,13 +312,18 @@ def chat():
 
         reply = response.choices[0].message.content
 
+        # --- Conversation History: save both sides for context ---
+        chat_memory.add_message(user_email, "user", user_message)
+        chat_memory.add_message(user_email, "assistant", reply)
+
         # --- Memory Engine: Save the user's message for future recall ---
         save_memory(user_email, user_message, query_vector)
 
         return jsonify({"response": reply})
 
     except Exception as e:
-        return jsonify({"response": "Server error: " + str(e)})
+        logger.exception("Chat error for user %s", session.get("user", {}).get("email", "unknown"))
+        return jsonify({"response": "Something went wrong. Please try again."}), 500
 
 
 if __name__ == "__main__":
