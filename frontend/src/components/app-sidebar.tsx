@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { ChevronsUpDownIcon, LogOutIcon, SettingsIcon } from "lucide-react";
 
 import { ThreadList } from "@/components/assistant-ui/elements/thread-list.aui";
-import { ZenLogo } from "@/components/zen-logo";
+import { NeuZemWordmark, ZenLogo } from "@/components/zen-logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -43,7 +43,12 @@ export const AppSidebar: FC<{ me: Me; onOpenSettings: () => void }> = ({
       <SidebarHeader>
         <div className="flex items-center gap-2.5 px-2 py-1.5">
           <ZenLogo />
-          <span className="text-base font-semibold tracking-tight">ZEN AI</span>
+          <div className="flex flex-col gap-1 leading-none">
+            <span className="text-base font-semibold tracking-tight">ZEN AI</span>
+            <span className="text-muted-foreground flex items-center gap-1 text-[10px]">
+              by <NeuZemWordmark className="h-3" />
+            </span>
+          </div>
         </div>
       </SidebarHeader>
 

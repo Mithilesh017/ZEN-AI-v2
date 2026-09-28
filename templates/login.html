@@ -25,7 +25,8 @@
             --border: #e5e5e5;
             --card: #ffffff;
             --btn-hover: #f5f5f5;
-            --glow: rgba(124, 58, 237, 0.12);
+            --glow: rgba(193, 23, 23, 0.08);
+            --brand: #c11717;
         }
         .dark {
             --bg: #0a0a0a;
@@ -34,7 +35,8 @@
             --border: rgba(255, 255, 255, 0.1);
             --card: #171717;
             --btn-hover: #262626;
-            --glow: rgba(124, 58, 237, 0.22);
+            --glow: rgba(208, 30, 30, 0.16);
+            --brand: #d01e1e;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -65,12 +67,12 @@
         .logo {
             width: 56px;
             height: 56px;
-            border-radius: 16px;
+            border-radius: 12px;
             display: grid;
             place-items: center;
-            background: linear-gradient(135deg, #8b5cf6, #4f46e5);
+            background: var(--brand);
             color: #fff;
-            box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.6);
+            box-shadow: 0 10px 30px -10px rgba(193, 23, 23, 0.55);
             margin-bottom: 24px;
         }
 
@@ -95,7 +97,7 @@
             transition: background 0.15s, border-color 0.15s;
         }
         .google-btn:hover { background: var(--btn-hover); }
-        .google-btn:focus-visible { outline: 2px solid #7c3aed; outline-offset: 2px; }
+        .google-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
         .error-banner {
             display: none;
@@ -113,7 +115,10 @@
         .terms a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
         .terms a:hover { color: var(--fg); }
 
-        .footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
+        .footer { margin-top: 40px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+        .footer img { height: 12px; width: auto; }
+        .footer .on-dark, .dark .footer .on-light { display: none; }
+        .dark .footer .on-dark { display: inline; }
     </style>
 </head>
 <body>
@@ -148,7 +153,11 @@
         <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
     </p>
 
-    <p class="footer">Built by ZEN Labs</p>
+    <p class="footer">
+        Built by
+        <img class="on-light" src="/static/app/neuzem-wordmark-black.png" alt="NeuZem">
+        <img class="on-dark" src="/static/app/neuzem-wordmark-white.png" alt="NeuZem">
+    </p>
 </main>
 
 <script>

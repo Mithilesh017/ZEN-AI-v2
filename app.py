@@ -9,6 +9,7 @@ import logging
 import urllib.parse
 import urllib.request
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Load env vars BEFORE importing memory engine modules
 # so that PINECONE_API_KEY, HF_TOKEN, etc. are available.
@@ -36,6 +37,9 @@ logging.basicConfig(
 logger = logging.getLogger("zen-ai")
 
 app = Flask(__name__)
+# Render terminates HTTPS at its proxy; trust its X-Forwarded-* headers so
+# url_for(..., _external=True) builds https:// URLs.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 # --- Mandatory secret key in production ---
 _secret = os.getenv("SECRET_KEY")
@@ -52,7 +56,9 @@ register_user_context_routes(app)
 
 GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "701868092175-vu87aklo8km85cdqfd0v2fin9tsac63e.apps.googleusercontent.com")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI         = os.getenv("REDIRECT_URI", "http://localhost:10000/callback")
+# Optional override. When unset, the callback URL is derived from the
+# current host, so the same code works on localhost and in production.
+REDIRECT_URI         = os.getenv("REDIRECT_URI", "").strip()
 
 api_key = os.getenv("GROQ_API_KEY")
 client  = Groq(api_key=api_key)
@@ -107,12 +113,16 @@ def login():
     return render_template("login.html")
 
 
+def _redirect_uri():
+    return REDIRECT_URI or url_for("callback", _external=True)
+
+
 @app.route("/google-login")
 def google_login():
     """Redirects browser to Google's OAuth consent screen."""
     params = urllib.parse.urlencode({
         "client_id":     GOOGLE_CLIENT_ID,
-        "redirect_uri":  REDIRECT_URI,
+        "redirect_uri":  _redirect_uri(),
         "response_type": "code",
         "scope":         "openid email profile",
         "prompt":        "select_account"
@@ -135,7 +145,7 @@ def callback():
             "code":          code,
             "client_id":     GOOGLE_CLIENT_ID,
             "client_secret": GOOGLE_CLIENT_SECRET,
-            "redirect_uri":  REDIRECT_URI,
+            "redirect_uri":  _redirect_uri(),
             "grant_type":    "authorization_code"
         }).encode()
 

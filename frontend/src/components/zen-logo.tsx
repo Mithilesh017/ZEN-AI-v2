@@ -1,11 +1,11 @@
 import { cn } from "@/lib/utils";
 
-/** ZEN mark: an ensō-style ring on the brand gradient. */
+/** ZEN mark: an ensō-style ring on NeuZem red. */
 export function ZenLogo({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-violet-500 to-indigo-600 text-white shadow-sm",
+        "bg-brand text-brand-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-md shadow-sm",
         className,
       )}
       aria-hidden
@@ -19,5 +19,24 @@ export function ZenLogo({ className }: { className?: string }) {
         />
       </svg>
     </div>
+  );
+}
+
+/** "by NeuZem" company wordmark, swapped for the current theme. */
+export function NeuZemWordmark({ className }: { className?: string }) {
+  const base = import.meta.env.BASE_URL;
+  return (
+    <span className={cn("inline-flex items-center", className)}>
+      <img
+        src={`${base}neuzem-wordmark-black.png`}
+        alt="NeuZem"
+        className="h-full w-auto dark:hidden"
+      />
+      <img
+        src={`${base}neuzem-wordmark-white.png`}
+        alt="NeuZem"
+        className="hidden h-full w-auto dark:block"
+      />
+    </span>
   );
 }
