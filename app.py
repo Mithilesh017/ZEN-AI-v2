@@ -1,11 +1,13 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import (
+    Flask, Response, jsonify, redirect, render_template, request,
+    send_from_directory, session, stream_with_context, url_for,
+)
 import os
 import sys
 import json
 import logging
 import urllib.parse
 import urllib.request
-from datetime import datetime
 from dotenv import load_dotenv
 
 # Load env vars BEFORE importing memory engine modules
@@ -24,7 +26,6 @@ from timezone_helper import get_current_datetime as get_current_datetime_tz
 from web_search import search_web, WEB_SEARCH_TOOL_DEFINITION
 from system_prompt import build_system_prompt
 from user_context import user_ctx, register_user_context_routes
-from chat_memory import chat_memory
 
 # --- Structured Logging ---
 logging.basicConfig(
@@ -57,16 +58,6 @@ api_key = os.getenv("GROQ_API_KEY")
 client  = Groq(api_key=api_key)
 
 
-def get_current_datetime():
-    now = datetime.now().astimezone()
-    return json.dumps({
-        "date": now.strftime("%Y-%m-%d"),
-        "time": now.strftime("%H:%M:%S"),
-        "day_of_week": now.strftime("%A"),
-        "timezone": now.strftime("%Z"),
-        "utc_offset": now.strftime("%z")
-    })
-
 
 tools = [
     {
@@ -86,7 +77,11 @@ tools.append(WEB_SEARCH_TOOL_DEFINITION)
 
 
 # --- Constants ---
+MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 MAX_MESSAGE_LENGTH = 4000
+MAX_HISTORY_MESSAGES = 40      # conversation turns the client sends per request
+MAX_TOOL_ROUNDS = 3            # tool-call round trips before forcing a plain answer
+FRONTEND_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "app")
 
 
 # ==================== ROUTES ====================
@@ -100,7 +95,9 @@ def health():
 def home():
     if "user" not in session:
         return redirect(url_for("login"))
-    return render_template("index.html")
+    if not os.path.exists(os.path.join(FRONTEND_DIST, "index.html")):
+        return "Frontend not built. Run: cd frontend && npm install && npm run build", 503
+    return send_from_directory(FRONTEND_DIST, "index.html")
 
 
 @app.route("/login")
@@ -180,150 +177,240 @@ def logout():
     return redirect(url_for("login"))
 
 
-@app.route("/update_name", methods=["POST"])
-def update_name():
+@app.route("/api/me")
+def api_me():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
-    data = request.get_json()
-    session["display_name"] = data.get("display_name", "").strip()[:32]
-    return jsonify({"status": "ok"})
+    user = session["user"]
+    return jsonify({
+        "name":         user.get("name") or "",
+        "email":        user.get("email") or "",
+        "picture":      user.get("picture"),
+        "display_name": session.get("display_name", ""),
+    })
 
 
-@app.route("/get_display_name")
-def get_display_name():
+@app.route("/api/display_name", methods=["POST"])
+def api_display_name():
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
-    return jsonify({"display_name": session.get("display_name", "")})
+    data = request.get_json(silent=True) or {}
+    name = data.get("display_name")
+    if not isinstance(name, str):
+        return jsonify({"error": "display_name must be a string"}), 400
+    session["display_name"] = name.strip()[:32]
+    return jsonify({"display_name": session["display_name"]})
 
 
-@app.route("/chat", methods=["POST"])
-def chat():
-    if "user" not in session:
-        return jsonify({"response": "Unauthorized. Please log in."}), 401
+# ==================== CHAT ====================
 
+def _parse_conversation(raw):
+    """
+    Validate the conversation sent by the client. The browser owns the
+    thread (so edits, regenerations and multiple chats stay consistent),
+    and sends it as [{role, content}, ...] ending with the new user turn.
+    Returns (history, user_message) or raises ValueError with a user-facing reason.
+    """
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("Please provide a valid message.")
+
+    conversation = []
+    for item in raw[-MAX_HISTORY_MESSAGES:]:
+        if not isinstance(item, dict):
+            raise ValueError("Please provide a valid message.")
+        role, content = item.get("role"), item.get("content")
+        if role not in ("user", "assistant") or not isinstance(content, str):
+            raise ValueError("Please provide a valid message.")
+        content = content.strip()
+        if content:
+            conversation.append({"role": role, "content": content})
+
+    if not conversation or conversation[-1]["role"] != "user":
+        raise ValueError("Message cannot be empty.")
+    user_message = conversation[-1]["content"]
+    if len(user_message) > MAX_MESSAGE_LENGTH:
+        raise ValueError(f"Message too long. Please keep it under {MAX_MESSAGE_LENGTH} characters.")
+    return conversation[:-1], user_message
+
+
+def _recall_memories(email, text):
+    """Embed the message and fetch related long-term memories. Never fatal."""
     try:
-        # --- Input validation ---
-        data = request.get_json(silent=True)
-        if not data or not isinstance(data.get("message"), str):
-            return jsonify({"response": "Please provide a valid message."}), 400
+        vector = text_to_vector(text)
+        return vector, search_memories(email, vector, limit=5)
+    except Exception:
+        logger.warning("Memory recall unavailable; continuing without it", exc_info=True)
+        return None, []
 
-        user_message = data["message"].strip()
-        if not user_message:
-            return jsonify({"response": "Message cannot be empty."}), 400
-        if len(user_message) > MAX_MESSAGE_LENGTH:
-            return jsonify({"response": f"Message too long. Please keep it under {MAX_MESSAGE_LENGTH} characters."}), 400
 
-        user_name    = session["user"].get("name", "User")
-        user_email   = session["user"].get("email")
-        user_timezone = data.get("timezone") or user_ctx.get_timezone(user_email)
+def _remember(email, text, vector):
+    if vector is None:
+        return
+    try:
+        save_memory(email, text, vector)
+    except Exception:
+        logger.warning("Could not save memory", exc_info=True)
 
-        # --- Memory Engine: Embed the incoming message ---
-        query_vector = text_to_vector(user_message)
 
-        # --- Memory Engine: Search for relevant past memories ---
-        memories = search_memories(user_email, query_vector, limit=5)
-
-        system_prompt = build_system_prompt(user_name)
-
-        # --- Memory Engine: Append relevant memories to the prompt ---
-        if memories:
-            memories_text = "\n".join(f"- {m}" for m in memories)
-            system_prompt += f"\n\nHere are some relevant past memories about this user:\n{memories_text}"
-
-        # --- Display Name: override how ZEN addresses the user ---
-        display_name = session.get("display_name")
-        if display_name:
-            system_prompt += f"\n\nCRITICAL INSTRUCTION: The user prefers to be called '{display_name}'. Address them by this name naturally in conversation."
-
-        # --- Conversation History: include recent context ---
-        history = chat_memory.get_history(user_email)
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            *history,
-            {"role": "user", "content": user_message}
-        ]
-
-        # --- First Groq call (with tools enabled) ---
+def _run_tool(name, arguments, user_timezone):
+    if name == "get_current_datetime":
+        return get_current_datetime_tz(user_timezone)
+    if name == "search_web":
         try:
-            response = client.chat.completions.create(
-                model="openai/gpt-oss-120b",
-                messages=messages,
-                tools=tools,
-                tool_choice="auto"
+            args = json.loads(arguments or "{}")
+        except json.JSONDecodeError:
+            args = {}
+        return search_web(args.get("query", "") if isinstance(args, dict) else "")
+    return json.dumps({"error": "Unknown tool requested."})
+
+
+def _parse_tool_args(arguments):
+    try:
+        args = json.loads(arguments or "{}")
+        return args if isinstance(args, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _without_tool_calls(messages):
+    """
+    Rewrite a tool-using conversation for a final, tools-free answer.
+    If the history still contains tool calls, gpt-oss keeps trying to call
+    tools and Groq rejects the turn ("Tool choice is none, but model called
+    a tool"), so tool outputs are handed over as plain context instead.
+    """
+    results = [m["content"] for m in messages if m["role"] == "tool"]
+    kept = [m for m in messages if m["role"] != "tool" and not m.get("tool_calls")]
+    if not results:
+        return kept
+    return kept + [{
+        "role": "system",
+        "content": (
+            "Information gathered with your tools for the latest message:\n\n"
+            + "\n\n---\n\n".join(results)
+            + "\n\nTools are no longer available. Answer the user now using this information."
+        ),
+    }]
+
+
+def _stream_reply(messages, user_timezone):
+    """
+    Stream the model's answer as events:
+      {"type": "text", "delta": str}
+      {"type": "tool-call", "id", "name", "args"}   — a tool started
+      {"type": "tool-result", "id"}                  — that tool finished
+    Tool calls are executed server-side, then the model is called again.
+    """
+    tools_enabled = True
+    for round_no in range(MAX_TOOL_ROUNDS + 1):
+        offer_tools = tools_enabled and round_no < MAX_TOOL_ROUNDS
+        extra = {"tools": tools, "tool_choice": "auto"} if offer_tools else {}
+        text, calls = "", {}
+        request_messages = messages if offer_tools else _without_tool_calls(messages)
+
+        try:
+            stream = client.chat.completions.create(
+                model=MODEL, messages=request_messages, stream=True, **extra
             )
-        except Exception as tool_err:
+            for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    text += delta.content
+                    yield {"type": "text", "delta": delta.content}
+                for tc in delta.tool_calls or []:
+                    slot = calls.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
+                    if tc.id:
+                        slot["id"] = tc.id
+                    if tc.function and tc.function.name:
+                        slot["name"] = tc.function.name
+                    if tc.function and tc.function.arguments:
+                        slot["arguments"] += tc.function.arguments
+        except Exception as err:
             # Groq sometimes returns 400 "tool_use_failed" when the model
-            # generates a malformed tool call.  Retry without tools.
-            logger.warning("Tool call failed, retrying without tools: %s", tool_err)
-            response = client.chat.completions.create(
-                model="openai/gpt-oss-120b",
-                messages=messages
-            )
+            # generates a malformed tool call. Retry once without tools.
+            if text or not offer_tools:
+                raise
+            logger.warning("Tool call failed, retrying without tools: %s", err)
+            tools_enabled = False
+            continue
 
-        response_message = response.choices[0].message
+        if not calls:
+            return
 
-        # --- Handle tool calls (if any) ---
-        if response_message.tool_calls:
+        ordered = [calls[i] for i in sorted(calls)]
+        messages.append({
+            "role": "assistant",
+            "content": text or None,
+            "tool_calls": [
+                {"id": c["id"], "type": "function",
+                 "function": {"name": c["name"], "arguments": c["arguments"]}}
+                for c in ordered
+            ],
+        })
+        for c in ordered:
+            yield {"type": "tool-call", "id": c["id"], "name": c["name"],
+                   "args": _parse_tool_args(c["arguments"])}
             messages.append({
-                "role": "assistant",
-                "content": response_message.content,
-                "tool_calls": [
-                    {
-                        "id": tool_call.id,
-                        "type": tool_call.type,
-                        "function": {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments
-                        }
-                    }
-                    for tool_call in response_message.tool_calls
-                ]
+                "role": "tool",
+                "tool_call_id": c["id"],
+                "content": _run_tool(c["name"], c["arguments"], user_timezone),
             })
+            yield {"type": "tool-result", "id": c["id"]}
 
-            for tool_call in response_message.tool_calls:
-                if tool_call.function.name == "get_current_datetime":
-                    tool_result = get_current_datetime_tz(user_timezone)
-                elif tool_call.function.name == "search_web":
-                    args = json.loads(tool_call.function.arguments)
-                    tool_result = search_web(args.get("query", ""))
-                else:
-                    tool_result = json.dumps({"error": "Unknown tool requested."})
 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": tool_result
-                })
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    """Stream a reply as newline-delimited JSON events (see _stream_reply)."""
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized. Please log in."}), 401
 
-            try:
-                response = client.chat.completions.create(
-                    model="openai/gpt-oss-120b",
-                    messages=messages
-                )
-            except Exception as followup_err:
-                # If the follow-up also fails, strip tool messages and retry
-                logger.warning("Follow-up failed, retrying clean: %s", followup_err)
-                clean_messages = [m for m in messages if m["role"] in ("system", "user")]
-                response = client.chat.completions.create(
-                    model="openai/gpt-oss-120b",
-                    messages=clean_messages
-                )
+    data = request.get_json(silent=True) or {}
+    try:
+        history, user_message = _parse_conversation(data.get("messages"))
+    except ValueError as err:
+        return jsonify({"error": str(err)}), 400
 
-        reply = response.choices[0].message.content
+    user_name  = session["user"].get("name", "User")
+    user_email = session["user"].get("email")
+    timezone   = data.get("timezone")
+    if isinstance(timezone, str) and timezone.strip():
+        user_ctx.set_timezone(user_email, timezone.strip()[:64])
+    user_timezone = user_ctx.get_timezone(user_email)
 
-        # --- Conversation History: save both sides for context ---
-        chat_memory.add_message(user_email, "user", user_message)
-        chat_memory.add_message(user_email, "assistant", reply)
+    # --- Long-term memory: recall related facts, then store this message ---
+    vector, memories = _recall_memories(user_email, user_message)
+    _remember(user_email, user_message, vector)
 
-        # --- Memory Engine: Save the user's message for future recall ---
-        save_memory(user_email, user_message, query_vector)
+    system_prompt = build_system_prompt(user_name)
+    if memories:
+        memories_text = "\n".join(f"- {m}" for m in memories)
+        system_prompt += f"\n\nHere are some relevant past memories about this user:\n{memories_text}"
 
-        return jsonify({"response": reply})
+    display_name = session.get("display_name")
+    if display_name:
+        system_prompt += f"\n\nCRITICAL INSTRUCTION: The user prefers to be called '{display_name}'. Address them by this name naturally in conversation."
 
-    except Exception as e:
-        logger.exception("Chat error for user %s", session.get("user", {}).get("email", "unknown"))
-        return jsonify({"response": "Something went wrong. Please try again."}), 500
+    messages = [
+        {"role": "system", "content": system_prompt},
+        *history,
+        {"role": "user", "content": user_message},
+    ]
+
+    def generate():
+        try:
+            for event in _stream_reply(messages, user_timezone):
+                yield json.dumps(event) + "\n"
+        except Exception:
+            logger.exception("Chat error for user %s", user_email)
+            yield json.dumps({"type": "error", "message": "Something went wrong. Please try again."}) + "\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="application/x-ndjson",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 if __name__ == "__main__":

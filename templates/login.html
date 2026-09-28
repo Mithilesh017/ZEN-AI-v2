@@ -2,112 +2,134 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>ZEN AI Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in · ZEN AI</title>
+    <link rel="icon" type="image/svg+xml" href="/static/app/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        // Match the theme chosen in the app (Settings → Appearance).
+        try {
+            var t = localStorage.getItem("theme");
+            if (t === "dark" || ((!t || t === "system") && matchMedia("(prefers-color-scheme: dark)").matches)) {
+                document.documentElement.classList.add("dark");
+            }
+        } catch (e) {}
+    </script>
     <style>
+        :root {
+            --bg: #ffffff;
+            --fg: #0a0a0a;
+            --muted: #737373;
+            --border: #e5e5e5;
+            --card: #ffffff;
+            --btn-hover: #f5f5f5;
+            --glow: rgba(124, 58, 237, 0.12);
+        }
+        .dark {
+            --bg: #0a0a0a;
+            --fg: #fafafa;
+            --muted: #a3a3a3;
+            --border: rgba(255, 255, 255, 0.1);
+            --card: #171717;
+            --btn-hover: #262626;
+            --glow: rgba(124, 58, 237, 0.22);
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background: #0f0f0f;
-            color: white;
-            font-family: 'Segoe UI', Arial, sans-serif;
+            min-height: 100dvh;
             display: flex;
-            justify-content: center;
             align-items: center;
-            height: 100vh;
+            justify-content: center;
+            padding: 24px 16px;
+            background:
+                radial-gradient(60rem 30rem at 50% -10%, var(--glow), transparent 70%),
+                var(--bg);
+            color: var(--fg);
+            font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .login-card {
-            background: #1a1a1a;
-            padding: 50px 45px;
-            border-radius: 16px;
+        .card {
+            width: 100%;
+            max-width: 380px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             text-align: center;
-            box-shadow: 0 0 40px rgba(0, 255, 150, 0.15);
-            width: 380px;
         }
 
         .logo {
-            font-size: 36px;
-            font-weight: 800;
-            letter-spacing: 2px;
-            background: linear-gradient(90deg, #00ffb3, #00aaff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 6px;
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: grid;
+            place-items: center;
+            background: linear-gradient(135deg, #8b5cf6, #4f46e5);
+            color: #fff;
+            box-shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.6);
+            margin-bottom: 24px;
         }
 
-        .tagline { font-size: 13px; color: #888; margin-bottom: 35px; letter-spacing: 1px; }
-
-        .badge {
-            display: inline-block;
-            background: rgba(0,255,179,0.1);
-            color: #00ffb3;
-            border: 1px solid rgba(0,255,179,0.3);
-            border-radius: 20px;
-            font-size: 11px;
-            padding: 3px 12px;
-            margin-bottom: 30px;
-            letter-spacing: 1px;
-        }
-
-        h3 { font-size: 18px; color: #ccc; font-weight: 400; margin-bottom: 5px; }
-
-        .divider { display: flex; align-items: center; margin: 25px 0; gap: 10px; }
-        .divider hr { flex: 1; border: none; border-top: 1px solid #333; }
-        .divider span { color: #555; font-size: 13px; }
+        h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-bottom: 8px; }
+        .tagline { font-size: 15px; color: var(--muted); margin-bottom: 32px; }
 
         .google-btn {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 12px;
-            background: #fff;
-            color: #3c3c3c;
-            border: none;
-            border-radius: 8px;
-            padding: 13px 20px;
             width: 100%;
+            padding: 12px 20px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--card);
+            color: var(--fg);
+            font: inherit;
             font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s, box-shadow 0.2s;
-            margin-top: 10px;
+            font-weight: 500;
             text-decoration: none;
+            transition: background 0.15s, border-color 0.15s;
         }
-
-        .google-btn:hover {
-            background: #f0f0f0;
-            box-shadow: 0 4px 15px rgba(255,255,255,0.1);
-        }
+        .google-btn:hover { background: var(--btn-hover); }
+        .google-btn:focus-visible { outline: 2px solid #7c3aed; outline-offset: 2px; }
 
         .error-banner {
             display: none;
-            margin-top: 14px;
-            font-size: 13px;
-            color: #ff5555;
-            background: rgba(255, 85, 85, 0.1);
-            border: 1px solid rgba(255, 85, 85, 0.3);
-            border-radius: 8px;
-            padding: 10px;
+            width: 100%;
+            margin-top: 16px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #dc2626;
+            background: rgba(220, 38, 38, 0.08);
+            border: 1px solid rgba(220, 38, 38, 0.25);
         }
 
-        .terms { margin-top: 28px; font-size: 12px; color: #555; line-height: 1.6; }
-        .terms a { color: #00ffb3; text-decoration: none; }
-        .terms a:hover { text-decoration: underline; }
+        .terms { margin-top: 28px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+        .terms a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+        .terms a:hover { color: var(--fg); }
+
+        .footer { margin-top: 40px; font-size: 12px; color: var(--muted); }
     </style>
 </head>
 <body>
 
-<div class="login-card">
-    <div class="logo">ZEN AI</div>
-    <div class="tagline">Your Intelligent Memory Assistant</div>
-    <div class="badge">⚡ Powered by ZEN Labs</div>
+<main class="card">
+    <div class="logo" aria-hidden="true">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+            <path d="M18.4 8.2A7.5 7.5 0 1 0 19.5 12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+        </svg>
+    </div>
 
-    <h3>Sign in to continue</h3>
-    <div class="divider"><hr><span>Use your Google account</span><hr></div>
+    <h1>Welcome to ZEN AI</h1>
+    <p class="tagline">Your intelligent assistant with memory.</p>
 
-    <!-- Direct link to /google-login — no JS needed, always works -->
     <a href="/google-login" class="google-btn">
-        <svg width="22" height="22" viewBox="0 0 48 48">
+        <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
             <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
             <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
@@ -117,20 +139,20 @@
     </a>
 
     <!-- Shows if Google returns ?error= in URL -->
-    <div class="error-banner" id="errorBanner">
-        ⚠️ Login failed. Please try again.
+    <div class="error-banner" id="errorBanner" role="alert">
+        Sign-in didn't work. Please try again.
     </div>
 
     <p class="terms">
-        By signing in, you agree to ZEN AI's
-        <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+        By continuing, you agree to ZEN AI's
+        <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
     </p>
-</div>
+
+    <p class="footer">Built by ZEN Labs</p>
+</main>
 
 <script>
-    // Show error banner if Google redirected back with ?error=
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('error')) {
+    if (new URLSearchParams(window.location.search).get('error')) {
         document.getElementById('errorBanner').style.display = 'block';
     }
 </script>
