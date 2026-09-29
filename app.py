@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import logging
+import secrets
 import urllib.parse
 import urllib.request
 from dotenv import load_dotenv
@@ -27,6 +28,7 @@ from timezone_helper import get_current_datetime as get_current_datetime_tz
 from web_search import search_web, WEB_SEARCH_TOOL_DEFINITION
 from system_prompt import build_system_prompt
 from user_context import user_ctx, register_user_context_routes
+from rate_limit import RateLimiter
 
 # --- Structured Logging ---
 logging.basicConfig(
@@ -41,11 +43,21 @@ app = Flask(__name__)
 # url_for(..., _external=True) builds https:// URLs.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# --- Mandatory secret key in production ---
+# --- Session signing key ---
+# Never fall back to a fixed key: anyone who knows it can forge a session
+# cookie for any account and read that user's chats and memories. Production
+# refuses to start without one; elsewhere we use a random per-process key, so
+# local runs work and the only cost is being logged out on restart.
 _secret = os.getenv("SECRET_KEY")
-if not _secret and os.getenv("FLASK_ENV") == "production":
-    raise RuntimeError("SECRET_KEY environment variable must be set in production")
-app.secret_key = _secret or "dev-only-fallback-key"
+if not _secret:
+    if os.getenv("FLASK_ENV") == "production":
+        raise RuntimeError("SECRET_KEY environment variable must be set in production")
+    _secret = secrets.token_hex(32)
+    logger.warning(
+        "SECRET_KEY is not set - using a random key for this process. "
+        "Sessions will not survive a restart. Set SECRET_KEY in .env."
+    )
+app.secret_key = _secret
 
 app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
@@ -89,6 +101,13 @@ MAX_HISTORY_MESSAGES = 40      # conversation turns the client sends per request
 MAX_TOOL_ROUNDS = 3            # tool-call round trips before forcing a plain answer
 FRONTEND_DIST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "app")
 
+# Per-user chat limits: a short burst rule plus a sustained hourly one. Both are
+# far above normal human use and exist to cap runaway scripts and API cost.
+chat_limiter = RateLimiter([
+    (int(os.getenv("CHAT_RATE_PER_MINUTE", "20")), 60),
+    (int(os.getenv("CHAT_RATE_PER_HOUR", "300")), 3600),
+])
+
 
 # ==================== ROUTES ====================
 
@@ -117,14 +136,25 @@ def _redirect_uri():
     return REDIRECT_URI or url_for("callback", _external=True)
 
 
+OAUTH_TIMEOUT = 10        # seconds per call to Google
+OAUTH_STATE_KEY = "oauth_state"
+
+
 @app.route("/google-login")
 def google_login():
     """Redirects browser to Google's OAuth consent screen."""
+    # One-time token tying this sign-in to this browser session. Without it an
+    # attacker could feed their own ?code= to /callback and log the visitor
+    # into the attacker's account (OAuth login CSRF).
+    state = secrets.token_urlsafe(32)
+    session[OAUTH_STATE_KEY] = state
+
     params = urllib.parse.urlencode({
         "client_id":     GOOGLE_CLIENT_ID,
         "redirect_uri":  _redirect_uri(),
         "response_type": "code",
         "scope":         "openid email profile",
+        "state":         state,
         "prompt":        "select_account"
     })
     return redirect(f"https://accounts.google.com/o/oauth2/v2/auth?{params}")
@@ -136,7 +166,16 @@ def callback():
     code  = request.args.get("code")
     error = request.args.get("error")
 
+    # The state is single-use: drop it whatever happens, so a code cannot be
+    # replayed against a later sign-in attempt.
+    expected_state = session.pop(OAUTH_STATE_KEY, None)
+
     if error or not code:
+        return redirect(url_for("login") + "?error=access_denied")
+
+    state = request.args.get("state", "")
+    if not expected_state or not secrets.compare_digest(state, expected_state):
+        logger.warning("OAuth callback with missing or mismatched state")
         return redirect(url_for("login") + "?error=access_denied")
 
     try:
@@ -154,7 +193,7 @@ def callback():
             data=token_data,
             method="POST"
         )
-        with urllib.request.urlopen(token_req) as resp:
+        with urllib.request.urlopen(token_req, timeout=OAUTH_TIMEOUT) as resp:
             token_json = json.loads(resp.read())
 
         access_token = token_json.get("access_token")
@@ -164,8 +203,12 @@ def callback():
             "https://www.googleapis.com/oauth2/v2/userinfo",
             headers={"Authorization": f"Bearer {access_token}"}
         )
-        with urllib.request.urlopen(userinfo_req) as resp:
+        with urllib.request.urlopen(userinfo_req, timeout=OAUTH_TIMEOUT) as resp:
             user_info = json.loads(resp.read())
+
+        if not user_info.get("email"):
+            logger.warning("OAuth callback returned no email")
+            return redirect(url_for("login") + "?error=server_error")
 
         # Step 3: Save to Flask session
         session["user"] = {
@@ -176,7 +219,7 @@ def callback():
 
         return redirect(url_for("home"))
 
-    except Exception as e:
+    except Exception:
         logger.exception("OAuth callback error")
         return redirect(url_for("login") + "?error=server_error")
 
@@ -375,6 +418,16 @@ def api_chat():
     """Stream a reply as newline-delimited JSON events (see _stream_reply)."""
     if "user" not in session:
         return jsonify({"error": "Unauthorized. Please log in."}), 401
+
+    # Throttle before any paid work (Groq, HuggingFace, Pinecone) happens.
+    retry_after = chat_limiter.check(session["user"].get("email") or "")
+    if retry_after is not None:
+        logger.info("Rate limited /api/chat for %s", session["user"].get("email"))
+        return (
+            jsonify({"error": "You're sending messages too quickly. Please wait a moment and try again."}),
+            429,
+            {"Retry-After": str(retry_after)},
+        )
 
     data = request.get_json(silent=True) or {}
     try:
