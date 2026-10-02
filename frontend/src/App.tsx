@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FC } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState, type FC } from "react";
 import {
   AssistantRuntimeProvider,
   AuiConfig,
@@ -10,7 +10,7 @@ import {
   useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
 import { createLocalStorageAdapter, type AsyncStorageLike } from "@assistant-ui/core/react";
-import { SquarePenIcon } from "lucide-react";
+import { SquarePenIcon, VideoIcon } from "lucide-react";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
@@ -57,6 +57,10 @@ const suggestionsConfig = AuiConfig({
   ]),
 });
 
+const CallScreen = lazy(() => import("@/features/call/call-screen"));
+// Warm the call bundle on hover/focus so the screen opens instantly.
+const preloadCall = () => void import("@/features/call/call-screen");
+
 const useZenThreadRuntime = () => useLocalRuntime(zenChatAdapter);
 
 /** Conversations are stored per Google account in this browser. */
@@ -101,6 +105,7 @@ const ChatApp: FC<{ me: Me; setMe: (me: Me) => void }> = ({ me, setMe }) => {
   const runtime = useZenRuntime(me.email);
   const { theme, setTheme } = useTheme();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
   const name = me.display_name || me.name;
   const components = useMemo(() => threadComponents(name), [name]);
 
@@ -118,6 +123,16 @@ const ChatApp: FC<{ me: Me; setMe: (me: Me) => void }> = ({ me, setMe }) => {
             <div className="hidden min-w-0 flex-1 md:flex">
               <ThreadTitle />
             </div>
+            <TooltipIconButton
+              tooltip="Video call"
+              variant="ghost"
+              className="size-8"
+              onClick={() => setCallOpen(true)}
+              onPointerEnter={preloadCall}
+              onFocus={preloadCall}
+            >
+              <VideoIcon />
+            </TooltipIconButton>
             <NewChatButton />
           </header>
           <div className="min-h-0 flex-1">
@@ -134,6 +149,12 @@ const ChatApp: FC<{ me: Me; setMe: (me: Me) => void }> = ({ me, setMe }) => {
         theme={theme}
         onThemeChange={setTheme}
       />
+
+      {callOpen && (
+        <Suspense fallback={<div className="fixed inset-0 z-50 bg-black" />}>
+          <CallScreen onClose={() => setCallOpen(false)} />
+        </Suspense>
+      )}
     </AssistantRuntimeProvider>
   );
 };
