@@ -7,17 +7,21 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@assistant-ui/core": "^0.3.21",
     "@assistant-ui/react": "^0.15.22",
     "@assistant-ui/react-markdown": "^0.14.17",
     "@fontsource-variable/geist": "^5.3.0",
+    "@mediapipe/tasks-vision": "^1.0.1",
+    "@ricky0123/vad-web": "^0.0.31",
     "@tailwindcss/vite": "^4.3.3",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "lucide-react": "^1.48.0",
+    "onnxruntime-web": "^1.30.0",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -35,6 +39,8 @@
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vite-plugin-static-copy": "^4.1.1",
+    "vitest": "^5.0.3"
   }
 }

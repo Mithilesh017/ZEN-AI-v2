@@ -10,6 +10,7 @@ import secrets
 import urllib.parse
 import urllib.request
 from dotenv import load_dotenv
+from flask_sock import Sock
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Load env vars BEFORE importing memory engine modules
@@ -29,6 +30,7 @@ from web_search import search_web, WEB_SEARCH_TOOL_DEFINITION
 from system_prompt import build_system_prompt
 from user_context import user_ctx, register_user_context_routes
 from rate_limit import RateLimiter
+from models.vision import register_vision_routes
 
 # --- Structured Logging ---
 logging.basicConfig(
@@ -474,6 +476,13 @@ def api_chat():
         mimetype="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ==================== LIVE CALLS ====================
+# Real-time video calls (models/vision). Same login and memory as chat.
+register_vision_routes(
+    app, Sock(app), client=client, recall=_recall_memories, remember=_remember,
+)
 
 
 if __name__ == "__main__":
