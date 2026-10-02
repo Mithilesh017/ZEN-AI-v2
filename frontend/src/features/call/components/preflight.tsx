@@ -22,8 +22,10 @@ export function Preflight({ onStart, onClose }: { onStart: () => void; onClose: 
   const cameraOn = useCallStore((s) => s.cameraOn);
 
   return (
-    <div className="flex h-full flex-col px-6 pt-[max(env(safe-area-inset-top),1rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)]">
-      <div className="flex justify-end">
+    // Header and footer stay put; only the middle scrolls, so "Start call" is
+    // always reachable however short the screen is after browser toolbars.
+    <div className="flex h-full flex-col pt-[max(env(safe-area-inset-top),0.75rem)] pb-[max(env(safe-area-inset-bottom),1rem)]">
+      <div className="flex shrink-0 justify-end px-4">
         <button
           type="button"
           onClick={onClose}
@@ -34,62 +36,70 @@ export function Preflight({ onStart, onClose }: { onStart: () => void; onClose: 
         </button>
       </div>
 
-      <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-9">
-        <div className="flex flex-col items-center gap-5 text-center">
-          <Orb state="idle" className="fade-in zoom-in-95 animate-in size-36 duration-500" />
-          <div className="space-y-2">
-            <h2 className="text-[26px] font-semibold tracking-tight">
-              Video call with ZEN
-            </h2>
-            <p className="text-[15px] leading-relaxed text-white/60">
-              Show ZEN what's in front of you and talk it through, like a call with a friend who knows a lot.
-            </p>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6">
+        <div className="mx-auto flex min-h-full w-full max-w-sm flex-col justify-center gap-9 py-4 [@media(max-height:760px)]:gap-6">
+          <div className="flex flex-col items-center gap-5 text-center [@media(max-height:760px)]:gap-3">
+            <Orb
+              state="idle"
+              className="fade-in zoom-in-95 animate-in size-36 duration-500 [@media(max-height:760px)]:size-24"
+            />
+            <div className="space-y-2">
+              <h2 className="text-[26px] font-semibold tracking-tight [@media(max-height:760px)]:text-[22px]">
+                Video call with ZEN
+              </h2>
+              <p className="text-[15px] leading-relaxed text-white/60">
+                Show ZEN what's in front of you and talk it through, like a call with a friend who knows a lot.
+              </p>
+            </div>
           </div>
-        </div>
 
-        <ul className="space-y-4">
-          <Point icon={<EyeIcon />} title="Sees when you speak">
-            One camera frame goes with each thing you say. Nothing streams in between.
-          </Point>
-          <Point icon={<MicIcon />} title="Talk over it any time">
-            Start speaking and ZEN stops to listen, just like on a phone call.
-          </Point>
-          <Point icon={<ShieldCheckIcon />} title="No recordings">
-            Audio and video aren't stored. As in chat, ZEN may remember what you tell it.
-          </Point>
-        </ul>
+          <ul className="space-y-4 [@media(max-height:760px)]:space-y-3">
+            <Point icon={<EyeIcon />} title="Sees when you speak">
+              One camera frame goes with each thing you say. Nothing streams in between.
+            </Point>
+            <Point icon={<MicIcon />} title="Talk over it any time">
+              Start speaking and ZEN stops to listen, just like on a phone call.
+            </Point>
+            <Point icon={<ShieldCheckIcon />} title="No recordings">
+              Audio and video aren't stored. As in chat, ZEN may remember what you tell it.
+            </Point>
+          </ul>
+        </div>
       </div>
 
-      <div className="mx-auto w-full max-w-sm space-y-3 pt-6">
-        <div role="radiogroup" aria-label="Camera" className="grid grid-cols-2 gap-1 rounded-full bg-white/[0.07] p-1">
-          {([
-            [true, "Camera on", <VideoIcon key="v" />],
-            [false, "Voice only", <VideoOffIcon key="o" />],
-          ] as const).map(([value, label, icon]) => (
-            <button
-              key={label}
-              type="button"
-              role="radio"
-              aria-checked={cameraOn === value}
-              onClick={() => setCall({ cameraOn: value })}
-              className={cn(
-                "flex h-9 items-center justify-center gap-2 rounded-full text-sm font-medium transition-colors [&_svg]:size-4",
-                cameraOn === value ? "bg-white text-black" : "text-white/65 hover:text-white",
-              )}
-            >
-              {icon}
-              {label}
-            </button>
-          ))}
+      <div className="relative shrink-0 px-6 pt-4">
+        <div className="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-gradient-to-t from-black to-transparent" />
+        <div className="mx-auto w-full max-w-sm space-y-3">
+          <div role="radiogroup" aria-label="Camera" className="grid grid-cols-2 gap-1 rounded-full bg-white/[0.07] p-1">
+            {([
+              [true, "Camera on", <VideoIcon key="v" />],
+              [false, "Voice only", <VideoOffIcon key="o" />],
+            ] as const).map(([value, label, icon]) => (
+              <button
+                key={label}
+                type="button"
+                role="radio"
+                aria-checked={cameraOn === value}
+                onClick={() => setCall({ cameraOn: value })}
+                className={cn(
+                  "flex h-9 items-center justify-center gap-2 rounded-full text-sm font-medium transition-colors [&_svg]:size-4",
+                  cameraOn === value ? "bg-white text-black" : "text-white/65 hover:text-white",
+                )}
+              >
+                {icon}
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={onStart}
+            autoFocus
+            className="bg-brand text-brand-foreground h-12 w-full rounded-full text-[15px] font-semibold transition-[filter,transform] hover:brightness-110 active:scale-[0.98]"
+          >
+            Start call
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onStart}
-          autoFocus
-          className="bg-brand text-brand-foreground h-12 w-full rounded-full text-[15px] font-semibold transition-[filter,transform] hover:brightness-110 active:scale-[0.98]"
-        >
-          Start call
-        </button>
       </div>
     </div>
   );

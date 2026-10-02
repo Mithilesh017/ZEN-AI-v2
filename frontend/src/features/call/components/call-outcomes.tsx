@@ -12,8 +12,8 @@ import { useCallStore, type CallErrorKind } from "../call-store";
 import { Orb } from "./orb";
 
 const Shell = ({ children }: { children: ReactNode }) => (
-  <div className="flex h-full flex-col items-center justify-center px-6 pt-[env(safe-area-inset-top)] pb-[max(env(safe-area-inset-bottom),1.5rem)]">
-    <div className="fade-in zoom-in-[0.98] animate-in flex w-full max-w-sm flex-col items-center gap-6 text-center duration-300">
+  <div className="flex h-full flex-col overflow-y-auto overscroll-contain px-6 pt-[max(env(safe-area-inset-top),1rem)] pb-[max(env(safe-area-inset-bottom),1.5rem)]">
+    <div className="fade-in zoom-in-[0.98] animate-in m-auto flex w-full max-w-sm flex-col items-center gap-6 text-center duration-300">
       {children}
     </div>
   </div>
