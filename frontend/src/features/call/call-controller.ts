@@ -140,6 +140,7 @@ export class CallController {
       if (this.disposed) return this.teardown();
       await vad.start();
       setCall({ phase: "live", startedAt: Date.now(), maxSeconds: ready.max_seconds, voice: ready.voice });
+      if (!ready.voice) this.notify("ZEN's voice is resting for now, so replies will be in captions.");
     } catch (err) {
       if (err instanceof CallFailure) return this.fail(err.kind, err.message);
       console.error("Call setup failed", err);
@@ -286,6 +287,8 @@ export class CallController {
       case "say":
         if (event.turn !== this.currentTurn) return;
         this.saysThisTurn += 1;
+        // Audio again after a quota pause means the voice is back.
+        if (event.audio && !useCallStore.getState().voice) setCall({ voice: true });
         if (event.audio) this.pendingSay.set(`${event.turn}:${event.seq}`, event.text);
         else this.player?.enqueue({ turn: event.turn, seq: event.seq, text: event.text }, null);
         return;
@@ -301,7 +304,7 @@ export class CallController {
         return;
 
       case "notice":
-        if (event.code === "voice_unavailable") setCall({ voice: false });
+        if (event.code === "voice_unavailable" || event.code === "voice_limited") setCall({ voice: false });
         this.notify(event.message);
         return;
 

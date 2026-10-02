@@ -82,10 +82,10 @@ def test_a_turn_streams_transcript_captions_and_ordered_audio():
 
     assert wire.of("transcript") == [{"type": "transcript", "turn": 1, "text": "What is this?"}]
     says = wire.of("say")
-    assert [s["text"] for s in says] == ["That's a mug.", "It looks empty.", "Want a refill?"]
-    assert [s["seq"] for s in says] == [1, 2, 3]
+    assert [s["text"] for s in says] == ["That's a mug.", "It looks empty. Want a refill?"]
+    assert [s["seq"] for s in says] == [1, 2]
     assert all(s["audio"] for s in says)
-    assert [(t, s) for t, s, _ in wire.audio] == [(1, 1), (1, 2), (1, 3)]
+    assert [(t, s) for t, s, _ in wire.audio] == [(1, 1), (1, 2)]
 
     done = wire.of("turn_done")[0]
     assert set(done["timings"]) >= {"stt_ms", "ttft_ms", "first_audio_ms", "total_ms"}
@@ -177,8 +177,32 @@ def test_voice_failure_degrades_to_captions():
     call, wire = make_call(FakeEngines(tts_error=SpeechUnavailable("terms")))
     run(call, utter())
     assert [n["code"] for n in wire.of("notice")] == ["voice_unavailable"]
-    assert [s["audio"] for s in wire.of("say")] == [False, False, False]
+    assert [s["audio"] for s in wire.of("say")] == [False, False]
     assert wire.audio == []
+
+
+def test_quota_limit_is_temporary_and_announced_once():
+    engines = FakeEngines(tts_error=SpeechUnavailable("429", reason="quota"))
+    call, wire = make_call(engines)
+    run(call, utter(1))
+    run(call, utter(2))
+    assert [n["code"] for n in wire.of("notice")] == ["voice_limited"]
+    assert all(not s["audio"] for s in wire.of("say"))
+
+    # Once the quota resets, the same call speaks again.
+    engines.tts_error = None
+    run(call, utter(3))
+    assert [s["audio"] for s in wire.of("say") if s["turn"] == 3] == [True, True]
+
+
+def test_new_calls_start_captions_only_while_the_quota_is_spent():
+    engines = FakeEngines()
+    engines.voice_available = lambda: False
+    call, wire = make_call(engines)
+    assert call.ready_message()["voice"] is False
+    run(call, utter())
+    assert engines.synthesized == []
+    assert all(not s["audio"] for s in wire.of("say"))
 
 
 def test_empty_transcript_skips_the_turn():

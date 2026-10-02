@@ -76,6 +76,13 @@ Per-turn timings are logged by the server. Open the call with `?debug` to see th
 
 **Orpheus needs a one-time terms acceptance** by the Groq org admin at console.groq.com (open the model in the playground). Until then calls run captions-only.
 
+**Voice quota.** Every speech chunk is one TTS request. Groq's free tier allows Orpheus about 100 requests per day and 1,200 tokens per minute, which is roughly 10 minutes of conversation a day. To make that go further:
+- After the first quick sentence, sentences are grouped into chunks of 80–180 characters, so a typical reply is two requests.
+- A per-minute limit is waited out (up to 4 s) and the request is retried.
+- When the daily quota runs out, voice turns off app-wide until Groq's reset time. Calls continue with captions and say why ("voice_limited" notice), new calls start captions-only, and voice comes back by itself after the reset.
+
+For real use, move the Groq org to a paid tier.
+
 ## Deploying
 
 A call holds a WebSocket open, so gunicorn needs threaded workers:
