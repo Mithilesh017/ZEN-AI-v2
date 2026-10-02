@@ -16,10 +16,20 @@ def stream(text, step=3):
     return out + chunker.flush()
 
 
-def test_splits_on_sentence_boundaries():
+def test_first_sentence_goes_alone_then_sentences_are_grouped():
+    # One TTS request per chunk: the first is fast, the rest are batched.
     assert stream("That's a cartridge valve. You'll need a spanner! Ready?") == [
-        "That's a cartridge valve.", "You'll need a spanner!", "Ready?",
+        "That's a cartridge valve.", "You'll need a spanner! Ready?",
     ]
+
+
+def test_grouped_chunks_close_once_long_enough():
+    text = ("Sure. " + "This sentence is here to fill out the second chunk nicely. "
+            + "Another one makes it long enough to close. And a short tail.")
+    chunks = stream(text)
+    assert chunks[0] == "Sure."
+    assert chunks[1].endswith("long enough to close.") and len(chunks[1]) >= 80
+    assert chunks[2] == "And a short tail."
 
 
 def test_does_not_split_decimals():
@@ -29,7 +39,7 @@ def test_does_not_split_decimals():
 def test_first_chunk_may_end_at_a_clause_for_faster_audio():
     chunks = stream("Looking at the label on that bottle, it says olive oil. Good choice.")
     assert chunks[0] == "Looking at the label on that bottle,"
-    assert chunks[1] == "it says olive oil."
+    assert chunks[1] == "it says olive oil. Good choice."
 
 
 def test_later_chunks_wait_for_full_sentences():

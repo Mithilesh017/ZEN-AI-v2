@@ -98,7 +98,8 @@ class CallSession:
         self._heard: dict[int, int] = {}          # turn -> sentences the user heard
         self._active: _Turn | None = None
         self._last_turn = 0
-        self._voice = True
+        self._voice = True              # false after a permanent TTS failure
+        self._quota_notified = False    # told the user the voice quota ran out
         self._memories: list[str] = []
         self._recalled = False
         self._started = clock()
@@ -108,7 +109,12 @@ class CallSession:
     # ── lifecycle ────────────────────────────────────────────
 
     def ready_message(self) -> dict:
-        return {"type": "ready", "max_seconds": self._limits.max_seconds, "voice": self._voice}
+        return {"type": "ready", "max_seconds": self._limits.max_seconds, "voice": self._voice_on()}
+
+    def _voice_on(self) -> bool:
+        """Voice is used unless it failed for good, or the shared quota is spent for now."""
+        available = getattr(self._engines, "voice_available", None)
+        return self._voice and (available() if available else True)
 
     def remaining_seconds(self) -> float:
         return self._limits.max_seconds - (self._clock() - self._started)
@@ -202,7 +208,7 @@ class CallSession:
         def queue(chunk: str) -> None:
             nonlocal seq
             seq += 1
-            future = self._pool.submit(self._engines.synthesize, chunk) if self._voice else None
+            future = self._pool.submit(self._engines.synthesize, chunk) if self._voice_on() else None
             pending.append((seq, chunk, future))
 
         def drain(block: bool) -> None:
@@ -217,6 +223,7 @@ class CallSession:
                     return
                 if audio is not None:
                     self._send_bytes(encode_speech(turn.id, n, audio))
+                    self._quota_notified = False
                     mark("first_audio_ms")
                 spoken.append(chunk)
 
@@ -241,12 +248,19 @@ class CallSession:
             return None
         try:
             return future.result()
-        except SpeechUnavailable:
-            logger.warning("Text-to-speech unavailable; continuing with captions only", exc_info=True)
-            if self._voice:
-                self._voice = False
-                self._send_json({"type": "notice", "code": "voice_unavailable",
-                                 "message": "Voice is unavailable right now, so I'll reply in captions."})
+        except SpeechUnavailable as err:
+            if err.reason == "quota":
+                # Temporary: voice returns by itself once the quota resets.
+                if not self._quota_notified:
+                    self._quota_notified = True
+                    self._send_json({"type": "notice", "code": "voice_limited",
+                                     "message": "My voice has hit its usage limit for now, so I'll reply in captions."})
+            else:
+                logger.warning("Text-to-speech unavailable; continuing with captions only", exc_info=True)
+                if self._voice:
+                    self._voice = False
+                    self._send_json({"type": "notice", "code": "voice_unavailable",
+                                     "message": "Voice is unavailable right now, so I'll reply in captions."})
         except Exception:
             logger.warning("Text-to-speech failed for one sentence", exc_info=True)
         return None

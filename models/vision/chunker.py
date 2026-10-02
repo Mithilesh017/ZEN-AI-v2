@@ -1,10 +1,12 @@
 """
 Split a streaming LLM reply into speakable chunks.
 
-Text-to-speech is the slowest stage of a turn, so each sentence is handed to
-it the moment it is complete instead of waiting for the whole reply. The first
-chunk may end at a clause boundary to get audio playing sooner, and every
-chunk respects the TTS engine's input limit.
+Text-to-speech is the slowest stage of a turn, so the first sentence is
+handed to it the moment it is complete (or even at a clause break) to get
+audio playing fast. After that, while the first chunk is still playing,
+sentences are grouped into larger chunks: every chunk is one TTS request, and
+requests are what the provider's quota counts. Every chunk respects the TTS
+engine's input limit.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ import re
 
 MAX_CHUNK = 180          # Orpheus rejects longer inputs
 FIRST_CHUNK_MIN = 24     # an early clause break is allowed once this long
+LATER_CHUNK_MIN = 80     # later chunks group sentences until at least this long
 
 _SENTENCE_END = re.compile(r"[.!?…]+[\"')\]]*(?=\s)")
 _CLAUSE_END = re.compile(r"[,;:—–](?=\s)")
@@ -26,10 +29,12 @@ def clean_for_speech(text: str) -> str:
 
 
 class SentenceChunker:
-    def __init__(self, max_chunk: int = MAX_CHUNK, first_min: int = FIRST_CHUNK_MIN):
+    def __init__(self, max_chunk: int = MAX_CHUNK, first_min: int = FIRST_CHUNK_MIN,
+                 later_min: int = LATER_CHUNK_MIN):
         self._buffer = ""
         self._max = max_chunk
         self._first_min = first_min
+        self._later_min = later_min
         self._emitted = 0
 
     def feed(self, delta: str) -> list[str]:
@@ -59,17 +64,21 @@ class SentenceChunker:
 
     def _find_cut(self) -> int | None:
         text = self._buffer
-        match = _SENTENCE_END.search(text)
-        if match and match.end() <= self._max:
-            return match.end()
+        ends = [m.end() for m in _SENTENCE_END.finditer(text) if m.end() <= self._max]
 
         if self._emitted == 0:
+            if ends:
+                return ends[0]
             clause = _CLAUSE_END.search(text, self._first_min)
             if clause and clause.end() <= self._max:
                 return clause.end()
+        else:
+            long_enough = [e for e in ends if e >= self._later_min]
+            if long_enough:
+                return long_enough[0]
 
         if len(text) > self._max:
-            return self._soft_break(text[: self._max])
+            return ends[-1] if ends else self._soft_break(text[: self._max])
         return None
 
     @staticmethod
