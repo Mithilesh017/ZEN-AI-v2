@@ -47,17 +47,30 @@ VOICE_SERVER_TOKEN=<VOICE_TOKEN from /etc/zen-voice.env>
 VOICE_SERVER_VOICE=af_heart          # optional; any Kokoro voice
 ```
 
+## Hugging Face Space
+
+The same server runs as a free Docker Space (2 vCPU, 16 GB), with no card and no VM:
+
+```bash
+pip install huggingface_hub
+HF_SPACE_TOKEN=hf_...  python deploy_space.py          # needs a token with write access
+```
+
+It uploads `Dockerfile`, `server.py`, `requirements.txt` and `space/README.md`, sets a random `VOICE_TOKEN` secret, and prints the URL for `VOICE_SERVER_URL`. Free Spaces sleep after about 48 hours without requests and take a minute or so to wake.
+
 ## Performance
 
-Real-time factor is the time to synthesise divided by the audio length; lower is faster.
+Measure any host the same way with `python bench.py <url> <token>`. Real-time factor (RTF) is the time to synthesise divided by the audio length; below 1.0 keeps ahead of playback.
 
-| Machine | Real-time factor (one sentence) |
-|---|---|
-| 12-thread desktop x86 | 0.40 |
-| Two sentences at once on that machine | 0.57 each |
-| Oracle A1, 4 OCPU | measure after setup: `journalctl -u zen-voice` logs it per sentence |
+| Host | RTF, one sentence | Opening sentence ready | RTF, two in flight |
+|---|---|---|---|
+| Desktop PC, 6 cores / 12 threads | 0.44 | 0.78 s | 0.62 |
+| Same PC limited to 2 vCPUs (one core, two threads) | 0.75 | 1.20 s | 0.96 |
+| Hugging Face free Space, Oracle A1 | not measured yet; expect slower than the 2-vCPU row, since cloud vCPUs are slower than desktop cores | | |
 
-Anything below 1.0 keeps ahead of playback, because ZEN streams sentence by sentence. The int8 model file is slower than full precision on CPUs (about 1.5), so use `kokoro-v1.0.onnx`.
+Notes:
+- Leave `THREADS` unset on a normal machine: ONNX Runtime's default (one thread per physical core) beat using every logical core (0.44 against 0.70). Inside a container the CPU limit is detected automatically.
+- The int8 model file is slower than full precision on CPUs (about 1.5), so use `kokoro-v1.0.onnx`.
 
 ## Operations
 

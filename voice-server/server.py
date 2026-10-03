@@ -46,9 +46,27 @@ if len(TOKEN) < 32:
     raise RuntimeError("VOICE_TOKEN must be set to a random string of at least 32 characters")
 
 
+def _thread_budget() -> int:
+    """
+    Threads for synthesis; 0 lets ONNX Runtime choose (one per physical core),
+    which is fastest on a normal machine. In a container the runtime sees the
+    host's cores, and that many threads on a 2-CPU allowance makes synthesis
+    slower, so the container's CPU limit is used instead.
+    """
+    if os.environ.get("THREADS"):
+        return max(1, int(os.environ["THREADS"]))
+    try:
+        quota, period = open("/sys/fs/cgroup/cpu.max").read().split()
+        if quota != "max":
+            return max(1, round(int(quota) / int(period)))
+    except (OSError, ValueError):
+        pass
+    return 0
+
+
 def _load() -> Kokoro:
     options = ort.SessionOptions()
-    options.intra_op_num_threads = os.cpu_count() or 4
+    options.intra_op_num_threads = _thread_budget()
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     session = ort.InferenceSession(MODEL_PATH, options, providers=["CPUExecutionProvider"])
     kokoro = Kokoro.from_session(session, VOICES_PATH)
@@ -60,7 +78,8 @@ started = time.monotonic()
 kokoro = _load()
 VOICES = set(kokoro.get_voices())
 slots = threading.BoundedSemaphore(MAX_CONCURRENT)
-logger.info("Kokoro ready in %.1f s with %d voices", time.monotonic() - started, len(VOICES))
+logger.info("Kokoro ready in %.1f s with %d voices (%s threads)",
+            time.monotonic() - started, len(VOICES), _thread_budget() or "auto")
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
