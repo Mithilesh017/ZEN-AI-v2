@@ -5,10 +5,16 @@ session logic can be tested without the network:
     transcribe(wav) -> str          speech to text
     reply(messages) -> Iterator     streamed answer text
     synthesize(text) -> bytes       text to speech (WAV)
+
+Voice comes from ZEN's own Kokoro server (voice-server/) when one is
+configured, with Groq's Orpheus as the overflow and fallback voice. Replies
+come from Groq's vision model, falling over to Gemini when Groq is rate
+limited or down.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -17,14 +23,28 @@ import time
 from collections.abc import Iterator
 from typing import Protocol
 
+import requests
+
 logger = logging.getLogger("zen-ai.vision")
 
 VISION_MODEL = os.getenv("VISION_MODEL", "qwen/qwen3.8-27b")
 STT_MODEL = os.getenv("STT_MODEL", "whisper-large-v3-turbo")
 TTS_MODEL = os.getenv("TTS_MODEL", "canopylabs/orpheus-v1-english")
 TTS_VOICE = os.getenv("TTS_VOICE", "autumn")
+VOICE_SERVER_URL = os.getenv("VOICE_SERVER_URL", "").rstrip("/")
+VOICE_SERVER_TOKEN = os.getenv("VOICE_SERVER_TOKEN", "")
+VOICE_SERVER_VOICE = os.getenv("VOICE_SERVER_VOICE", "af_heart")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+# Fallback reply models, tried in order after Groq. Flash-Lite answers within
+# about two seconds on the free tier; the larger Flash models are often
+# refused there ("high demand") or take far too long for a call.
+GEMINI_MODELS = [m.strip() for m in os.getenv(
+    "GEMINI_MODELS", "gemini-3.5-flash-lite,gemini-3.1-flash-lite").split(",") if m.strip()]
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 
-MAX_REPLY_TOKENS = 400
+# Spoken replies are one to three sentences; the reservation also counts
+# against the provider's tokens-per-minute limit, so keep it tight.
+MAX_REPLY_TOKENS = 200
 # Whisper invents text ("Thank you.") for near-silence; segments it is
 # unsure contain speech are dropped.
 NO_SPEECH_THRESHOLD = 0.6
@@ -51,9 +71,9 @@ class Engines(Protocol):
 
 class VoiceBreaker:
     """
-    Process-wide memory that the TTS quota is spent, so new calls start in
-    captions-only mode instead of each one rediscovering the limit one failed
-    sentence at a time.
+    Process-wide memory that a provider is out of quota or down, so calls skip
+    it until it recovers instead of each one rediscovering the problem one
+    failed request at a time.
     """
 
     def __init__(self, clock=time.monotonic):
@@ -68,6 +88,10 @@ class VoiceBreaker:
     def is_open(self) -> bool:
         with self._lock:
             return self._clock() >= self._until
+
+    def remaining(self) -> float:
+        with self._lock:
+            return max(0.0, self._until - self._clock())
 
 
 _DURATION = re.compile(r"(\d+(?:\.\d+)?)(ms|h|m|s)")
@@ -104,14 +128,141 @@ def rate_limit_wait(headers) -> float:
     return max(waits, default=60.0)
 
 
+class ModelBusy(RuntimeError):
+    """The reply model is rate limited; it can take requests again in `wait` seconds."""
+
+    def __init__(self, wait: float):
+        super().__init__(f"model busy for {wait:.1f} s")
+        self.wait = wait
+
+
+class GeminiReply:
+    """
+    A Gemini model as a fallback reply source, through Google's
+    OpenAI-compatible endpoint, so it takes the same messages (including the
+    camera frame) as Groq.
+    """
+
+    def __init__(self, model: str, api_key: str, *, http=None, timeout=(3.0, 20.0)):
+        self.name = model
+        self._model = model
+        self._headers = {"Authorization": f"Bearer {api_key}"}
+        self._http = http or requests.Session()
+        self._timeout = timeout
+
+    def __call__(self, messages: list[dict]) -> Iterator[str]:
+        response = self._http.post(
+            GEMINI_URL,
+            headers=self._headers,
+            json={"model": self._model, "messages": messages, "stream": True,
+                  "max_tokens": MAX_REPLY_TOKENS, "temperature": 0.6},
+            stream=True,
+            timeout=self._timeout,
+        )
+        if response.status_code == 429:
+            response.close()
+            raise ModelBusy(parse_reset(response.headers.get("retry-after")) or 60.0)
+        if response.status_code != 200:
+            detail = response.text[:200]
+            response.close()
+            raise RuntimeError(f"Gemini {self._model} returned {response.status_code}: {detail}")
+        try:
+            for line in response.iter_lines():
+                if not line.startswith(b"data: ") or line == b"data: [DONE]":
+                    continue
+                choices = json.loads(line[6:]).get("choices") or [{}]
+                text = (choices[0].get("delta") or {}).get("content")
+                if text:
+                    yield text
+        finally:
+            response.close()
+
+
+def gemini_replies_from_env() -> list[GeminiReply]:
+    if not GEMINI_API_KEY:
+        return []
+    return [GeminiReply(model, GEMINI_API_KEY) for model in GEMINI_MODELS]
+
+
+class VoiceSkipped(RuntimeError):
+    """Our own voice server can't take this sentence; use the fallback voice."""
+
+
+class OwnVoice:
+    """
+    ZEN's self-hosted Kokoro server (see voice-server/). Unlimited and free to
+    run, but a single small machine: when it is busy it answers 503 at once,
+    and when it is unreachable it is skipped for a while rather than making
+    every sentence wait for a timeout.
+    """
+
+    OUTAGE_PAUSE = 30.0       # seconds to skip the server after a failure
+    AUTH_PAUSE = 300.0        # a wrong token will not fix itself quickly
+
+    def __init__(self, url: str, token: str, voice: str = "af_heart", *,
+                 http=None, breaker: VoiceBreaker | None = None, timeout=(2.0, 8.0)):
+        self._endpoint = f"{url}/v1/audio/speech"
+        self._headers = {"Authorization": f"Bearer {token}"}
+        self._voice = voice
+        self._http = http or requests.Session()
+        self._breaker = breaker or VoiceBreaker()
+        self._timeout = timeout
+
+    def available(self) -> bool:
+        return self._breaker.is_open()
+
+    def synthesize(self, text: str) -> bytes:
+        if not self._breaker.is_open():
+            raise VoiceSkipped("voice server paused after a failure")
+        try:
+            response = self._http.post(
+                self._endpoint,
+                json={"input": text, "voice": self._voice, "response_format": "wav"},
+                headers=self._headers,
+                timeout=self._timeout,
+            )
+        except requests.RequestException as err:
+            logger.warning("Voice server unreachable; using fallback voice for %.0f s: %s",
+                           self.OUTAGE_PAUSE, err)
+            self._breaker.trip(self.OUTAGE_PAUSE)
+            raise VoiceSkipped(str(err)) from err
+
+        if response.status_code == 200 and response.content.startswith(b"RIFF"):
+            return response.content
+        if response.status_code == 503:
+            raise VoiceSkipped("voice server busy")  # overflow this sentence only
+        pause = self.AUTH_PAUSE if response.status_code == 401 else self.OUTAGE_PAUSE
+        logger.error("Voice server returned %s; using fallback voice for %.0f s",
+                     response.status_code, pause)
+        self._breaker.trip(pause)
+        raise VoiceSkipped(f"voice server status {response.status_code}")
+
+
+def own_voice_from_env() -> OwnVoice | None:
+    if not VOICE_SERVER_URL:
+        return None
+    if len(VOICE_SERVER_TOKEN) < 32:
+        logger.error("VOICE_SERVER_URL is set but VOICE_SERVER_TOKEN is missing; not using it")
+        return None
+    return OwnVoice(VOICE_SERVER_URL, VOICE_SERVER_TOKEN, VOICE_SERVER_VOICE)
+
+
 class GroqEngines:
-    def __init__(self, client, breaker: VoiceBreaker | None = None, sleep=time.sleep):
+    DOWN_PAUSE = 20.0    # seconds a reply source is skipped after an error
+
+    def __init__(self, client, breaker: VoiceBreaker | None = None, sleep=time.sleep,
+                 own_voice: OwnVoice | None = None, fallback_replies=(), clock=time.monotonic):
         self._client = client
         self._breaker = breaker or VoiceBreaker()
         self._sleep = sleep
+        self._own_voice = own_voice
+        # Reply sources in order of preference, each with its own breaker.
+        self._replies = [(self._groq_reply, VoiceBreaker(clock)),
+                         *((source, VoiceBreaker(clock)) for source in fallback_replies)]
 
     def voice_available(self) -> bool:
-        return self._breaker.is_open()
+        own = self._own_voice is not None and self._own_voice.available()
+        return own or self._breaker.is_open()
 
     def transcribe(self, wav: bytes) -> str:
         result = self._client.audio.transcriptions.create(
@@ -130,16 +281,59 @@ class GroqEngines:
         return " ".join(t.strip() for t in spoken if t).strip()
 
     def reply(self, messages: list[dict]) -> Iterator[str]:
-        stream = self._client.chat.completions.create(
-            model=VISION_MODEL,
-            messages=messages,
-            stream=True,
-            max_tokens=MAX_REPLY_TOKENS,
-            temperature=0.6,
-            # Hidden reasoning costs ~0.5 s before the first word; a spoken
-            # reply needs to start immediately.
-            reasoning_effort="none",
-        )
+        """
+        The first reply source that will answer now. A rate-limited or failing
+        source is skipped until it recovers. ModelBusy is raised only when
+        every source is rate limited, with the shortest wait among them.
+        """
+        failure: Exception | None = None
+        for source, breaker in self._replies:
+            if not breaker.is_open():
+                continue
+            name = getattr(source, "name", VISION_MODEL)
+            stream = source(messages)
+            try:
+                first = next(stream)
+            except StopIteration:
+                return
+            except ModelBusy as busy:
+                logger.info("Reply model %s rate limited for %.0f s", name, busy.wait)
+                breaker.trip(busy.wait)
+                continue
+            except Exception as err:
+                logger.warning("Reply model %s failed; skipping it for %.0f s: %s",
+                               name, self.DOWN_PAUSE, err)
+                breaker.trip(self.DOWN_PAUSE)
+                failure = err
+                continue
+            yield first
+            yield from stream
+            return
+
+        waits = [breaker.remaining() for _, breaker in self._replies]
+        if failure is not None and len(self._replies) == 1:
+            raise failure
+        raise ModelBusy(min(waits))
+
+    def _groq_reply(self, messages: list[dict]) -> Iterator[str]:
+        try:
+            # No silent SDK retries: on a live call a rate limit has to be
+            # handled visibly (see CallSession), not by sleeping for 20 s.
+            stream = self._client.with_options(max_retries=0).chat.completions.create(
+                model=VISION_MODEL,
+                messages=messages,
+                stream=True,
+                max_tokens=MAX_REPLY_TOKENS,
+                temperature=0.6,
+                # Hidden reasoning costs ~0.5 s before the first word; a spoken
+                # reply needs to start immediately.
+                reasoning_effort="none",
+            )
+        except Exception as err:
+            if getattr(err, "status_code", None) == 429:
+                headers = getattr(getattr(err, "response", None), "headers", None) or {}
+                raise ModelBusy(rate_limit_wait(headers)) from err
+            raise
         try:
             for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
@@ -150,6 +344,14 @@ class GroqEngines:
                 close()
 
     def synthesize(self, text: str) -> bytes:
+        if self._own_voice is not None:
+            try:
+                return self._own_voice.synthesize(text)
+            except VoiceSkipped:
+                pass
+        return self._groq_voice(text)
+
+    def _groq_voice(self, text: str) -> bytes:
         if not self._breaker.is_open():
             raise SpeechUnavailable("Voice quota exhausted", reason="quota")
         for attempt in range(2):

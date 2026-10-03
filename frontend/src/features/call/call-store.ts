@@ -30,6 +30,8 @@ export type CallState = {
   detectionsOn: boolean;
   detectorReady: boolean;
   voice: boolean;
+  /** with no server voice, the phone's built-in voice is speaking */
+  deviceVoice: boolean;
   userCaption: string;
   zenCaption: string;
   notice: string | null;
@@ -55,6 +57,7 @@ export const initialCallState: CallState = {
   detectionsOn: true,
   detectorReady: false,
   voice: true,
+  deviceVoice: false,
   userCaption: "",
   zenCaption: "",
   notice: null,

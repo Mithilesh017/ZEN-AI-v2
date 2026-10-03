@@ -3,17 +3,25 @@
  *
  * Segments are decoded as they arrive but always scheduled in order on the
  * AudioContext clock, back to back. Each segment's caption is revealed the
- * moment its audio starts, so text never runs ahead of the voice. Captions
- * without audio (voice unavailable) share the same timeline, held on screen
- * for a reading-speed estimate.
+ * moment its audio starts, so text never runs ahead of the voice. Segments
+ * without audio (no server voice available) are spoken by the phone's own
+ * voice when it has one, or held on screen for a reading-speed estimate.
  *
  * stop() is the barge-in path: it silences everything immediately and
  * reports how many segments of the turn the user actually heard.
  */
 
+import type { DeviceVoice } from "./device-voice";
+
 export type Segment = { turn: number; seq: number; text: string };
 
-type Scheduled = Segment & { source: AudioBufferSourceNode | null; start: number; end: number };
+type Scheduled = Segment & {
+  source: AudioBufferSourceNode | null;
+  start: number;
+  end: number;
+  /** spoken by the phone's voice; true while it is actually talking */
+  device?: { speaking: boolean };
+};
 
 const READ_SECONDS_PER_WORD = 0.32;
 const LOOKAHEAD = 0.05; // seconds of scheduling headroom
@@ -23,6 +31,7 @@ export class SpeechPlayer {
   onIdle?: () => void;
 
   private readonly ctx: AudioContext;
+  private readonly deviceVoice: DeviceVoice | null;
   private readonly analyser: AnalyserNode;
   private readonly levels: Float32Array<ArrayBuffer>;
   private cursor = 0;
@@ -33,8 +42,9 @@ export class SpeechPlayer {
   private started = new Map<number, number>(); // turn -> segments started
   private decoding = 0;
 
-  constructor(ctx: AudioContext) {
+  constructor(ctx: AudioContext, deviceVoice: DeviceVoice | null = null) {
     this.ctx = ctx;
+    this.deviceVoice = deviceVoice;
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 512;
     this.analyser.smoothingTimeConstant = 0.6;
@@ -74,6 +84,11 @@ export class SpeechPlayer {
   /** Current output loudness, 0–1, for the orb. */
   level(): number {
     if (this.scheduled.length === 0) return 0;
+    if (this.scheduled.some((s) => s.device?.speaking)) {
+      // The phone's voice can't be measured; give the orb a speech-like pulse.
+      const t = performance.now() / 1000;
+      return 0.35 + 0.2 * Math.sin(t * 11) * Math.sin(t * 3.7);
+    }
     this.analyser.getFloatTimeDomainData(this.levels);
     let sum = 0;
     for (const v of this.levels) sum += v * v;
@@ -94,6 +109,7 @@ export class SpeechPlayer {
       }
     }
     this.scheduled = [];
+    this.deviceVoice?.cancel();
     this.timers.forEach(clearTimeout);
     this.timers.clear();
     this.cursor = 0;
@@ -115,6 +131,10 @@ export class SpeechPlayer {
       source.connect(this.analyser);
       source.start(start);
       entry.source = source;
+    } else if (this.deviceVoice?.ready) {
+      this.scheduled.push(entry);
+      this.speakOnDevice(entry);
+      return;
     }
     this.scheduled.push(entry);
 
@@ -125,6 +145,32 @@ export class SpeechPlayer {
     this.at(entry.end, () => {
       this.scheduled = this.scheduled.filter((s) => s !== entry);
       if (!this.playing) this.onIdle?.();
+    });
+  }
+
+  /**
+   * The phone's voice runs on its own clock: the caption switches when it
+   * really starts talking, and the segment ends when it really stops. The
+   * estimated duration only spaces out any server audio queued after it.
+   */
+  private speakOnDevice(entry: Scheduled): void {
+    const generation = this.generation;
+    entry.device = { speaking: false };
+    this.at(entry.start, () => {
+      this.deviceVoice!.speak(entry.text, {
+        onStart: () => {
+          if (generation !== this.generation) return;
+          entry.device!.speaking = true;
+          this.started.set(entry.turn, Math.max(this.heard(entry.turn), entry.seq));
+          this.onSegmentStart?.(entry);
+        },
+        onEnd: () => {
+          if (generation !== this.generation) return;
+          entry.device!.speaking = false;
+          this.scheduled = this.scheduled.filter((s) => s !== entry);
+          if (!this.playing) this.onIdle?.();
+        },
+      });
     });
   }
 

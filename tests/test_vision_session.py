@@ -7,9 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from models.vision import session as session_module
 from models.vision.protocol import Detection, Utterance, decode_speech
 from models.vision.session import CallLimits, CallSession
-from models.vision.speech import SpeechUnavailable
+from models.vision.speech import ModelBusy, SpeechUnavailable
 
 WAV = b"RIFF" + b"\x00" * 40
 JPEG = b"\xff\xd8" + b"\x00" * 20
@@ -263,3 +264,40 @@ def test_call_time_limit():
     assert call.remaining_seconds() == 60
     now[0] = 61
     assert call.remaining_seconds() < 0
+
+
+class BusyThenReply(FakeEngines):
+    """The model is rate limited for the first `busy` calls."""
+
+    def __init__(self, waits, **kwargs):
+        super().__init__(**kwargs)
+        self.waits = list(waits)
+
+    def reply(self, messages):
+        if self.waits:
+            raise ModelBusy(self.waits.pop(0))
+        yield from super().reply(messages)
+
+
+def test_short_rate_limit_is_waited_out_quietly(monkeypatch):
+    call, wire = make_call(BusyThenReply([0.05]))
+    run(call, utter())
+    assert wire.of("notice") == []
+    assert wire.of("say")
+
+
+def test_longer_rate_limit_is_announced_then_answered(monkeypatch):
+    monkeypatch.setattr(session_module, "QUIET_WAIT", 0.01)
+    call, wire = make_call(BusyThenReply([0.1]))
+    run(call, utter())
+    assert [n["code"] for n in wire.of("notice")] == ["busy"]
+    assert wire.of("say")
+
+
+def test_rate_limit_too_long_to_wait_tells_the_user(monkeypatch):
+    monkeypatch.setattr(session_module, "MAX_BUSY_WAIT", 1.0)
+    call, wire = make_call(BusyThenReply([60]))
+    run(call, utter())
+    assert [n["code"] for n in wire.of("notice")] == ["busy"]
+    assert "limit" in wire.of("notice")[0]["message"]
+    assert wire.of("say") == []
