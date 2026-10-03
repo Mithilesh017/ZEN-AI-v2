@@ -22,7 +22,7 @@ from rate_limit import RateLimiter
 
 from .protocol import ProtocolError, parse_control, parse_utterance
 from .session import CallLimits, CallSession
-from .speech import GroqEngines
+from .speech import GroqEngines, gemini_replies_from_env, own_voice_from_env
 
 logger = logging.getLogger("zen-ai.vision")
 
@@ -82,7 +82,8 @@ def same_origin(origin: str | None, host: str | None) -> bool:
 
 def register_vision_routes(app, sock, *, client, recall=None, remember=None) -> None:
     app.config.setdefault("SOCK_SERVER_OPTIONS", {"ping_interval": 20, "max_message_size": 1_500_000})
-    engines = GroqEngines(client)
+    engines = GroqEngines(client, own_voice=own_voice_from_env(),
+                          fallback_replies=gemini_replies_from_env())
 
     @sock.route("/api/vision/call")
     def vision_call(ws):

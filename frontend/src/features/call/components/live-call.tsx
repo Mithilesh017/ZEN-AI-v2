@@ -44,6 +44,7 @@ function StatusPill() {
   const link = useCallStore((s) => s.link);
   const muted = useCallStore((s) => s.muted);
   const voice = useCallStore((s) => s.voice);
+  const deviceVoice = useCallStore((s) => s.deviceVoice);
   const startedAt = useCallStore((s) => s.startedAt);
   const maxSeconds = useCallStore((s) => s.maxSeconds);
   const now = useNow(phase === "live");
@@ -73,7 +74,7 @@ function StatusPill() {
       </div>
       {!voice && (
         <span className="h-8 rounded-full bg-black/35 px-3 text-[13px] leading-8 text-white/70 backdrop-blur-xl">
-          Captions only
+          {deviceVoice ? "Phone voice" : "Captions only"}
         </span>
       )}
     </div>

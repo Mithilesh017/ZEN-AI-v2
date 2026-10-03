@@ -12,6 +12,7 @@
  */
 import { appendLine, initialCallState, noteSeen, setCall, useCallStore, type CallErrorKind } from "./call-store";
 import { Camera, CameraError, captureFrame, mediaErrorKind } from "./media/camera";
+import { DeviceVoice } from "./media/device-voice";
 import { SpeechPlayer } from "./media/playback";
 import { VoiceDetector } from "./media/vad";
 import { encodeWav } from "./media/wav";
@@ -39,6 +40,7 @@ export class CallController {
   private mic: MediaStream | null = null;
   private vad: VoiceDetector | null = null;
   private player: SpeechPlayer | null = null;
+  private deviceVoice = new DeviceVoice();
   private detector: Detector | null = null;
   private detectorLoading: Promise<void> | null = null;
   private video: HTMLVideoElement | null = null;
@@ -78,6 +80,7 @@ export class CallController {
     // Created inside the user's tap so mobile browsers allow audio output.
     this.ctx = new AudioContext();
     void this.ctx.resume();
+    this.deviceVoice.prime();
 
     try {
       this.mic = await navigator.mediaDevices.getUserMedia({
@@ -104,7 +107,7 @@ export class CallController {
     }
     void Camera.hasMultiple().then((canFlip) => setCall({ canFlip }));
 
-    this.player = new SpeechPlayer(this.ctx);
+    this.player = new SpeechPlayer(this.ctx, this.deviceVoice);
     this.player.onSegmentStart = (segment) => {
       if (segment.turn !== this.currentTurn) return;
       this.clearTimer("caption");
@@ -140,7 +143,7 @@ export class CallController {
       if (this.disposed) return this.teardown();
       await vad.start();
       setCall({ phase: "live", startedAt: Date.now(), maxSeconds: ready.max_seconds, voice: ready.voice });
-      if (!ready.voice) this.notify("ZEN's voice is resting for now, so replies will be in captions.");
+      if (!ready.voice) this.voiceFallbackNotice("ZEN's voice is resting for now, so replies will be in captions.");
     } catch (err) {
       if (err instanceof CallFailure) return this.fail(err.kind, err.message);
       console.error("Call setup failed", err);
@@ -304,7 +307,11 @@ export class CallController {
         return;
 
       case "notice":
-        if (event.code === "voice_unavailable" || event.code === "voice_limited") setCall({ voice: false });
+        if (event.code === "voice_unavailable" || event.code === "voice_limited") {
+          setCall({ voice: false });
+          this.voiceFallbackNotice(event.message);
+          return;
+        }
         this.notify(event.message);
         return;
 
@@ -432,6 +439,13 @@ export class CallController {
     this.wakeLock = null;
     if (this.ctx && this.ctx.state !== "closed") void this.ctx.close();
     this.ctx = null;
+  }
+
+  /** Server voice is gone: say whether the phone's own voice takes over. */
+  private voiceFallbackNotice(captionsMessage: string): void {
+    const onDevice = this.deviceVoice.ready;
+    setCall({ deviceVoice: onDevice });
+    this.notify(onDevice ? "Switched to your phone's voice for now." : captionsMessage);
   }
 
   private notify(message: string): void {

@@ -70,6 +70,10 @@ Per-turn timings are logged by the server. Open the call with `?debug` to see th
 | `VISION_MODEL` | `qwen/qwen3.8-27b` |
 | `STT_MODEL` | `whisper-large-v3-turbo` |
 | `TTS_MODEL` / `TTS_VOICE` | `canopylabs/orpheus-v1-english` / `autumn` |
+| `GEMINI_API_KEY` | unset. When set, replies fall over to Gemini while Groq is rate limited or down |
+| `GEMINI_MODELS` | `gemini-3.5-flash-lite,gemini-3.1-flash-lite` (tried in order) |
+| `VOICE_SERVER_URL` / `VOICE_SERVER_TOKEN` | unset. ZEN's own Kokoro server (see `voice-server/`); used first when set |
+| `VOICE_SERVER_VOICE` | `af_heart` |
 | `CALL_MAX_MINUTES` | `15` |
 | `CALL_STARTS_PER_HOUR` | `10` |
 | `CALL_TURNS_PER_MINUTE` | `30` |
@@ -82,6 +86,20 @@ Per-turn timings are logged by the server. Open the call with `?debug` to see th
 - When the daily quota runs out, voice turns off app-wide until Groq's reset time. Calls continue with captions and say why ("voice_limited" notice), new calls start captions-only, and voice comes back by itself after the reset.
 
 For real use, move the Groq org to a paid tier.
+
+## Fallbacks
+
+Each part of a turn has an order of preference. A source that is rate limited or failing is skipped until it recovers, tracked per process.
+
+| Part | Order |
+|---|---|
+| Reply | Groq vision model → Gemini Flash-Lite models. If all are rate limited, a short wait is ridden out and a long one is announced to the caller. |
+| Voice | Own Kokoro server → Groq Orpheus → the phone's built-in voice → captions |
+
+Free-tier limits measured on this account:
+- **Groq vision:** 8,000 tokens/min and 200,000 tokens/day. A turn with a frame is about 1,100–2,400 tokens.
+- **Groq Orpheus:** 100 requests/day.
+- **Gemini free tier:** slower to start (about 2–4 s) and sometimes refuses with "high demand". Google may use free-tier inputs to improve its products, so use the paid tier before sending real users' camera frames to it.
 
 ## Deploying
 

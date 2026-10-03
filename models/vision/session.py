@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from .chunker import SentenceChunker
 from .prompt import build_call_prompt, describe_view
 from .protocol import Utterance, encode_speech
-from .speech import Engines, SpeechUnavailable
+from .speech import Engines, ModelBusy, SpeechUnavailable
 
 logger = logging.getLogger("zen-ai.vision")
 
@@ -42,6 +42,18 @@ Recall = Callable[[str, str], tuple[object, list[str]]]
 Remember = Callable[[str, str, object], None]
 
 MIN_WORDS_TO_REMEMBER = 4
+# A rate-limited reply is retried once if the model frees up within this many
+# seconds; waits longer than QUIET_WAIT are announced so the call isn't silent.
+MAX_BUSY_WAIT = 25.0
+QUIET_WAIT = 3.0
+
+
+def _limit_message(wait: float) -> str:
+    if wait < 90:
+        return "I'm at my limit for the moment. Try me again in a minute."
+    if wait < 3600:
+        return f"I've hit my usage limit. Try me again in about {round(wait / 60)} minutes."
+    return "I've hit my usage limit for today. Try me again later."
 
 
 @dataclass(frozen=True)
@@ -184,6 +196,8 @@ class CallSession:
         spoken: list[str] = []
         try:
             self._speak(turn, messages, spoken, mark)
+        except ModelBusy as busy:
+            self._emit(turn, {"type": "notice", "code": "busy", "message": _limit_message(busy.wait)})
         except Exception:
             logger.exception("Reply failed on turn %s", turn.id)
             self._emit(turn, {"type": "notice", "code": "reply_failed",
@@ -227,7 +241,7 @@ class CallSession:
                     mark("first_audio_ms")
                 spoken.append(chunk)
 
-        for delta in self._engines.reply(messages):
+        for delta in self._reply_deltas(turn, messages):
             if turn.cancelled.is_set():
                 break
             mark("ttft_ms")
@@ -242,6 +256,34 @@ class CallSession:
         for _, _, future in pending:
             if future:
                 future.cancel()
+
+    def _reply_deltas(self, turn: _Turn, messages: list[dict]):
+        """
+        The model's streamed reply, riding out one rate limit. A short limit is
+        waited out quietly (the user just sees ZEN thinking); a longer one is
+        announced with how long it will take. Talking over ZEN cancels the wait.
+        """
+        waited = False
+        while True:
+            stream = self._engines.reply(messages)
+            try:
+                first = next(stream)
+            except StopIteration:
+                return
+            except ModelBusy as busy:
+                if waited or busy.wait > MAX_BUSY_WAIT:
+                    raise
+                waited = True
+                logger.info("Reply model busy for %.1f s on turn %s", busy.wait, turn.id)
+                if busy.wait > QUIET_WAIT:
+                    self._emit(turn, {"type": "notice", "code": "busy",
+                                      "message": f"Lots of questions at once. Give me about {round(busy.wait)} seconds."})
+                if turn.cancelled.wait(busy.wait + 0.2):
+                    return
+                continue
+            yield first
+            yield from stream
+            return
 
     def _audio_of(self, future: Future | None) -> bytes | None:
         if future is None:
